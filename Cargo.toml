@@ -1,0 +1,58 @@
+[package]
+name = "u-v"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "u_v"
+crate-type = ["cdylib"]
+
+[dependencies]
+unityfs = "0.1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde-wasm-bindgen = "0.6"
+wasm-bindgen = "0.2"
+crc32fast = "1.5"
+image = "0.25"
+texture2ddecoder = "0.1"
+js-sys = "0.3"
+
+[profile.dev]
+opt-level = 0
+
+[profile.dev.package.unityfs]
+opt-level = 3
+[profile.dev.package.lz4_flex]
+opt-level = 3
+[profile.dev.package.lzma-rs]
+opt-level = 3
+[profile.dev.package.sevenz-rust2]
+opt-level = 3
+[profile.dev.package.lzma-rust2]
+opt-level = 3
+[profile.dev.package.zip]
+opt-level = 3
+[profile.dev.package.texture2ddecoder]
+opt-level = 3
+[profile.dev.package.image]
+opt-level = 3
+[profile.dev.package.flate2]
+opt-level = 3
+[profile.dev.package.miniz_oxide]
+opt-level = 3
+[profile.dev.package.brotli-decompressor]
+opt-level = 3
+[profile.dev.package.png]
+opt-level = 3
+[profile.dev.package.fdeflate]
+opt-level = 3
+
+[profile.release]
+opt-level = "s"
+
+[package.metadata.wasm-pack.profile.dev]
+wasm-opt = false
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = true

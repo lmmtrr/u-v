@@ -1,0 +1,88 @@
+<!doctype html>
+<meta charset=utf-8>
+<title>U-V</title>
+<style>
+  body,
+  html {
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    margin: 0
+  }
+
+  #renderCanvas {
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    z-index: 1
+  }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/ui.css">
+<canvas id=renderCanvas></canvas>
+<div id="ui-root"></div>
+<div id="loading-overlay" class="loading-overlay">
+  <div class="loading-card">
+    <div class="loading-spinner"></div>
+    <div class="loading-info">
+      <div id="loading-status" class="loading-status">Loading Asset...</div>
+      <div id="loading-subtext" class="loading-subtext">Initializing worker thread</div>
+    </div>
+    <div class="progress-container">
+      <div id="progress-bar" class="progress-bar"></div>
+    </div>
+  </div>
+</div>
+<div id="notifications"></div>
+<div id="splash">
+  <div class="splash-card">
+    <div class="splash-github-wrapper">
+      <a href="https://github.com/lmmtrr/u-v" target="_blank" rel="noopener noreferrer" class="splash-github-link"
+        aria-label="View on GitHub">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path
+            d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22">
+          </path>
+        </svg>
+        <span>GitHub</span>
+      </a>
+    </div>
+
+    <div class="splash-header">
+      <h1 class="splash-title">U-V</h1>
+      <p class="splash-subtitle">Unity 3D Asset Viewer</p>
+    </div>
+
+    <div class="upload-zone" id="upload-zone">
+      <div class="upload-arrow">
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="16 16 12 12 8 16"></polyline>
+          <line x1="12" y1="12" x2="12" y2="21"></line>
+          <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"></path>
+          <polyline points="16 16 12 12 8 16"></polyline>
+        </svg>
+      </div>
+      <p id="text"><span id="text-file">Browse files</span> or drag & drop anywhere on the screen</p>
+    </div>
+
+    <div class="splash-divider">
+      <div class="divider-line"></div>
+      <div class="divider-text">OR</div>
+      <div class="divider-line"></div>
+    </div>
+
+    <div id="form">
+      <div class="input-container">
+        <input id="input" placeholder="Paste asset file URL...">
+      </div>
+      <button id="button" type="button">Load</button>
+    </div>
+  </div>
+</div>
+<script type="module" src="dist/main.js"></script>
+
+</html>
