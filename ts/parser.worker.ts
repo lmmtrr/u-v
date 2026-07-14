@@ -10,7 +10,7 @@ interface WebWorkerGlobalScope {
   postMessage(message: WorkerMessagePayload, transferables?: Transferable[]): void;
 }
 let environments: { name: string; env: Environment }[] = [];
-const wasmInitPromise = init({ module_or_path: `u_v_bg.wasm?t=${Date.now()}` });
+const wasmInitPromise = init();
 const ctx = self as never as WebWorkerGlobalScope;
 self.onmessage = async (event: MessageEvent) => {
   try {

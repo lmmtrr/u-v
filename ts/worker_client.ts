@@ -12,7 +12,7 @@ class WorkerClient {
   >;
   private requestIdCounter: number;
   constructor() {
-    this.worker = new Worker(`dist/parser.worker.js?t=${Date.now()}`, { type: "module" });
+    this.worker = new Worker(new URL("./parser.worker.js", import.meta.url), { type: "module" });
     this.pendingRequests = new Map();
     this.requestIdCounter = 0;
     this.worker.onmessage = (event: MessageEvent) => {
