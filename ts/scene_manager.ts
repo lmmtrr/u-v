@@ -26,9 +26,15 @@ import {
 import { interpolate } from "./animation_interpolator";
 import { applyHumanoidRotation } from "./humanoid_system";
 import { setupSpringBones, createPhysicsObserver } from "./physics_system";
-import { computeCRC32, createSorter, normalizeHash, getBindingPath } from "./utils";
+import { computeCRC32, createSorter, normalizeHash } from "./utils";
 import { updateProgress, hideProgress } from "./progress";
-import type { MeshMeta, TextureMeta, UnityObject, JSONValue, AnimationClipItem } from "./types";
+import type {
+  MeshMeta,
+  TextureMeta,
+  UnityObject,
+  JSONValue,
+  AnimationClipItem,
+} from "./types";
 import { processOrphanedMeshes } from "./orphan_resolver";
 import { resolveRendererTextures, isValidPathId } from "./texture_resolver";
 import { instantiateMesh, getRelativeMatrix } from "./mesh_builder";
@@ -124,12 +130,16 @@ export class SceneManager {
     const targetId = partId;
     const matchingRenderers: Array<Record<string, JSONValue>> = [];
     file.objects.forEach((obj) => {
-      const data = (obj?.SkinnedMeshRenderer || obj?.MeshRenderer || obj?.Mesh) as Record<string, JSONValue> | undefined;
+      const data = (obj?.SkinnedMeshRenderer ||
+        obj?.MeshRenderer ||
+        obj?.Mesh) as Record<string, JSONValue> | undefined;
       if (!data) return;
       const pathIdStr = String(data.path_id || "");
       if (!pathIdStr) return;
       const meshMeta = data.mesh as Record<string, JSONValue> | undefined;
-      const displayName = String(data.name || meshMeta?.name || `part_${pathIdStr}`);
+      const displayName = String(
+        data.name || meshMeta?.name || `part_${pathIdStr}`,
+      );
       const isMatch =
         (targetId &&
           (pathIdStr === targetId || `orphan_${pathIdStr}` === targetId)) ||
@@ -178,8 +188,9 @@ export class SceneManager {
           const hasMatch = matchingRenderers.some((data) => {
             const pathIdStr = String(data.path_id || "");
             const meshMeta = data.mesh as Record<string, JSONValue> | undefined;
-            const displayName =
-              String(data.name || meshMeta?.name || `part_${pathIdStr}`);
+            const displayName = String(
+              data.name || meshMeta?.name || `part_${pathIdStr}`,
+            );
             const idMatch =
               meshPathIdStr === pathIdStr ||
               meshPathIdStr === `orphan_${pathIdStr}`;
@@ -202,16 +213,18 @@ export class SceneManager {
               mesh.metadata.visibleSubmeshIndices = new Set(
                 originalSubMeshes
                   .map((sub, idx) => (mesh.subMeshes.includes(sub) ? idx : -1))
-                  .filter((idx) => idx !== -1)
+                  .filter((idx) => idx !== -1),
               );
             }
             if (nextEnabled) {
-              originalSubMeshes.forEach((_, idx) => mesh.metadata.visibleSubmeshIndices.add(idx));
+              originalSubMeshes.forEach((_, idx) =>
+                mesh.metadata.visibleSubmeshIndices.add(idx),
+              );
             } else {
               mesh.metadata.visibleSubmeshIndices.clear();
             }
             mesh.subMeshes = originalSubMeshes.filter((_, idx) =>
-              mesh.metadata.visibleSubmeshIndices.has(idx)
+              mesh.metadata.visibleSubmeshIndices.has(idx),
             );
             mesh.setEnabled(nextEnabled);
           }
@@ -235,15 +248,21 @@ export class SceneManager {
       const namesToToggle = new Set<string>();
       if (pathIds) {
         file.objects.forEach((obj) => {
-          const data = (obj?.SkinnedMeshRenderer || obj?.MeshRenderer || obj?.Mesh) as Record<string, JSONValue> | undefined;
+          const data = (obj?.SkinnedMeshRenderer ||
+            obj?.MeshRenderer ||
+            obj?.Mesh) as Record<string, JSONValue> | undefined;
           if (data) {
             const pathIdStr = String(data.path_id || "");
             const isOrphan = pathIds.some((pid) =>
               this.isApproxPathIdMatch(pid, pathIdStr),
             );
             if (isOrphan && pathIdStr) {
-              const meshMeta = data.mesh as Record<string, JSONValue> | undefined;
-              const name = String(data.name || meshMeta?.name || `part_${pathIdStr}`);
+              const meshMeta = data.mesh as
+                | Record<string, JSONValue>
+                | undefined;
+              const name = String(
+                data.name || meshMeta?.name || `part_${pathIdStr}`,
+              );
               namesToToggle.add(name);
             }
           }
@@ -251,11 +270,15 @@ export class SceneManager {
       }
       const matchingRenderers: Array<Record<string, JSONValue>> = [];
       file.objects.forEach((obj) => {
-        const data = (obj?.SkinnedMeshRenderer || obj?.MeshRenderer || obj?.Mesh) as Record<string, JSONValue> | undefined;
+        const data = (obj?.SkinnedMeshRenderer ||
+          obj?.MeshRenderer ||
+          obj?.Mesh) as Record<string, JSONValue> | undefined;
         if (data) {
           const pathIdStr = String(data.path_id || "");
           const meshMeta = data.mesh as Record<string, JSONValue> | undefined;
-          const name = String(data.name || meshMeta?.name || `part_${pathIdStr}`);
+          const name = String(
+            data.name || meshMeta?.name || `part_${pathIdStr}`,
+          );
           const matchesPath =
             pathIds &&
             pathIds.some((pid) => this.isApproxPathIdMatch(pid, pathIdStr));
@@ -266,11 +289,13 @@ export class SceneManager {
         }
       });
       state.createdMeshes.forEach((mesh) => {
-        const matchedRenderer = mesh.metadata && matchingRenderers.find((data) => {
-          const pathIdStr = String(data.path_id || "");
-          const meshPathIdStr = String(mesh.metadata.rendererPathId);
-          return this.isApproxPathIdMatch(meshPathIdStr, pathIdStr);
-        });
+        const matchedRenderer =
+          mesh.metadata &&
+          matchingRenderers.find((data) => {
+            const pathIdStr = String(data.path_id || "");
+            const meshPathIdStr = String(mesh.metadata.rendererPathId);
+            return this.isApproxPathIdMatch(meshPathIdStr, pathIdStr);
+          });
         if (matchedRenderer) {
           if (!mesh.metadata.originalSubMeshes) {
             mesh.metadata.originalSubMeshes = [...mesh.subMeshes];
@@ -280,7 +305,7 @@ export class SceneManager {
             mesh.metadata.visibleSubmeshIndices = new Set(
               originalSubMeshes
                 .map((sub, idx) => (mesh.subMeshes.includes(sub) ? idx : -1))
-                .filter((idx) => idx !== -1)
+                .filter((idx) => idx !== -1),
             );
           }
           if (query) {
@@ -288,13 +313,17 @@ export class SceneManager {
               const friendlyName = subMesh.friendlyName;
               let name = friendlyName || `Submesh ${subIndex + 1}`;
               if (mesh.material instanceof MultiMaterial) {
-                const subMat = mesh.material.subMaterials[subMesh.materialIndex];
+                const subMat =
+                  mesh.material.subMaterials[subMesh.materialIndex];
                 if (subMat) {
                   const standardMat = subMat as any;
                   const matName = standardMat.diffuseTexture
-                    ? standardMat.diffuseTexture.name || `Texture ${subMesh.materialIndex + 1}`
+                    ? standardMat.diffuseTexture.name ||
+                      `Texture ${subMesh.materialIndex + 1}`
                     : standardMat.name || `Submesh ${subIndex + 1}`;
-                  name = friendlyName ? `${friendlyName} (${matName})` : matName;
+                  name = friendlyName
+                    ? `${friendlyName} (${matName})`
+                    : matName;
                 }
               }
               return name;
@@ -310,17 +339,19 @@ export class SceneManager {
               }
             });
             mesh.subMeshes = originalSubMeshes.filter((_, idx) =>
-              mesh.metadata.visibleSubmeshIndices.has(idx)
+              mesh.metadata.visibleSubmeshIndices.has(idx),
             );
             mesh.setEnabled(mesh.metadata.visibleSubmeshIndices.size > 0);
           } else {
             if (nextEnabled) {
-              originalSubMeshes.forEach((_, idx) => mesh.metadata.visibleSubmeshIndices.add(idx));
+              originalSubMeshes.forEach((_, idx) =>
+                mesh.metadata.visibleSubmeshIndices.add(idx),
+              );
             } else {
               mesh.metadata.visibleSubmeshIndices.clear();
             }
             mesh.subMeshes = originalSubMeshes.filter((_, idx) =>
-              mesh.metadata.visibleSubmeshIndices.has(idx)
+              mesh.metadata.visibleSubmeshIndices.has(idx),
             );
             mesh.setEnabled(nextEnabled);
           }
@@ -370,7 +401,7 @@ export class SceneManager {
         mesh.metadata.visibleSubmeshIndices = new Set(
           originalSubMeshes
             .map((sub, idx) => (mesh.subMeshes.includes(sub) ? idx : -1))
-            .filter((idx) => idx !== -1)
+            .filter((idx) => idx !== -1),
         );
       }
       if (visible) {
@@ -379,7 +410,7 @@ export class SceneManager {
         mesh.metadata.visibleSubmeshIndices.delete(submeshIndex);
       }
       mesh.subMeshes = originalSubMeshes.filter((_, idx) =>
-        mesh.metadata.visibleSubmeshIndices.has(idx)
+        mesh.metadata.visibleSubmeshIndices.has(idx),
       );
     }
   };
@@ -406,26 +437,32 @@ export class SceneManager {
     const partIdStr = String(partId);
     state.partTranslations.set(partIdStr, translation);
     const renderer = state.allObjects.find((obj) => {
-      const data = (obj?.SkinnedMeshRenderer || obj?.MeshRenderer) as Record<string, JSONValue> | undefined;
+      const data = (obj?.SkinnedMeshRenderer || obj?.MeshRenderer) as
+        | Record<string, JSONValue>
+        | undefined;
       return data && String(data.path_id || "") === partIdStr;
     });
     if (renderer) {
-      const data = (renderer.SkinnedMeshRenderer || renderer.MeshRenderer) as Record<string, JSONValue> | undefined;
-      const gameObj = data?.m_GameObject as Record<string, JSONValue> | undefined;
+      const data = (renderer.SkinnedMeshRenderer || renderer.MeshRenderer) as
+        | Record<string, JSONValue>
+        | undefined;
+      const gameObj = data?.m_GameObject as
+        | Record<string, JSONValue>
+        | undefined;
       const transformId = gameObj ? String(gameObj.path_id || "") : "";
       const transform = transformId
         ? state.transformsByGameObjectId.get(transformId)
         : undefined;
-      const transformPathId = transform?.path_id ? String(transform.path_id) : "";
+      const transformPathId = transform?.path_id
+        ? String(transform.path_id)
+        : "";
       const node = state.transformNodesByPathId.get(transformPathId);
       if (node) {
-        const localPos = transform?.m_LocalPosition as Record<string, number> | undefined;
+        const localPos = transform?.m_LocalPosition as
+          | Record<string, number>
+          | undefined;
         const basePos = localPos
-          ? new Vector3(
-              localPos.x ?? 0,
-              localPos.y ?? 0,
-              localPos.z ?? 0,
-            )
+          ? new Vector3(localPos.x ?? 0, localPos.y ?? 0, localPos.z ?? 0)
           : Vector3.Zero();
         node.position.set(
           basePos.x + translation.x,
@@ -445,9 +482,7 @@ export class SceneManager {
     }
     this.rebuildScene(true);
   };
-  public stopAnimation = () => {
-    state.currentAnimationData = null;
-    state.animationPlaying = false;
+  private resetToBindPose = () => {
     state.transformNodesByPathId.forEach((node) => {
       if (node.metadata) {
         if (node.metadata.initialPosition) {
@@ -480,6 +515,11 @@ export class SceneManager {
         }
       }
     });
+  };
+  public stopAnimation = () => {
+    state.currentAnimationData = null;
+    state.animationPlaying = false;
+    this.resetToBindPose();
     updateUIState({
       currentAnimationIndex: -1,
       currentAnimationData: null,
@@ -492,6 +532,7 @@ export class SceneManager {
       return;
     }
     if (!state.animationClips[idx]) return;
+    this.resetToBindPose();
     state.currentAnimationData = buildAnimationData(
       state.animationClips[idx] as never as UnityObject,
       state.allObjectHash,
@@ -602,7 +643,9 @@ export class SceneManager {
         }
       });
       objects.forEach((obj) => {
-        const smr = obj?.SkinnedMeshRenderer as Record<string, JSONValue> | undefined;
+        const smr = obj?.SkinnedMeshRenderer as
+          | Record<string, JSONValue>
+          | undefined;
         if (smr && smr.bone_path_ids && Array.isArray(smr.bone_path_ids)) {
           const meshName = String(smr.name || "").toLowerCase();
           const firstBoneIdStr = String(smr.bone_path_ids[0] || "");
@@ -649,14 +692,21 @@ export class SceneManager {
     }
     processOrphanedMeshes(objects, lookup as never);
     resolveRendererTextures(objects, lookup as never);
-    const { uniqueRenderers, meshBestRendererMap } = this.identifyUniqueRenderers(objects, lookup);
+    const { uniqueRenderers, meshBestRendererMap } =
+      this.identifyUniqueRenderers(objects, lookup);
     const skeletons = new Map<
       string,
-      { skeleton: Skeleton; boneMap: Map<string, Bone>; hierarchyRootId: string }
+      {
+        skeleton: Skeleton;
+        boneMap: Map<string, Bone>;
+        hierarchyRootId: string;
+      }
     >();
     const allUsedBones = new Set<string>();
     objects.forEach((obj) => {
-      const smr = obj?.SkinnedMeshRenderer as Record<string, JSONValue> | undefined;
+      const smr = obj?.SkinnedMeshRenderer as
+        | Record<string, JSONValue>
+        | undefined;
       if (smr) {
         const bonePathIds = smr.bone_path_ids as JSONValue[] | undefined;
         if (bonePathIds) {
@@ -692,7 +742,7 @@ export class SceneManager {
       skeletons,
       allUsedBones,
       meshBestRendererMap,
-      sceneRoot
+      sceneRoot,
     );
     state.createdMeshes = createdMeshes;
     if (state.showSkeletons) {
@@ -715,7 +765,8 @@ export class SceneManager {
       });
     }
     lookup.animationClips.sort(createSorter((a) => a.name));
-    state.animationClips = lookup.animationClips as never as AnimationClipItem[];
+    state.animationClips =
+      lookup.animationClips as never as AnimationClipItem[];
     if (state.animationClips.length > 0) {
       if (!skipUIUpdate) {
         state.animationDropdown = createAnimationUI(
@@ -779,11 +830,13 @@ export class SceneManager {
       if (wasSkeletonVisible) {
         this.toggleSkeletonViewer(false);
       }
-      const activeFile = state.loadedFiles.find(f => !f.removedFromUI);
-      const baseName = activeFile ? activeFile.name?.replace(/\.[^/.]+$/, "") : "model";
+      const activeFile = state.loadedFiles.find((f) => !f.removedFromUI);
+      const baseName = activeFile
+        ? activeFile.name?.replace(/\.[^/.]+$/, "")
+        : "model";
       const exportName = `${baseName}_export`;
       updateProgress(15, "Converting active animations for GLB...");
-      const createdAnimations: Array<{ node: any, anims: any[] }> = [];
+      const createdAnimations: Array<{ node: any; anims: any[] }> = [];
       let tempAnimGroup: any = null;
       if (state.currentAnimationData) {
         const animData = state.currentAnimationData;
@@ -795,9 +848,13 @@ export class SceneManager {
         const TO_RAD = Math.PI / 180;
         const evaluateFrame = (frame: number) => {
           animData.bones.forEach((boneData, bone) => {
-            const node = "getTransformNode" in bone ? (bone as Bone).getTransformNode() : (bone as TransformNode);
+            const node =
+              "getTransformNode" in bone
+                ? (bone as Bone).getTransformNode()
+                : (bone as TransformNode);
             if (!node) return;
-            const hasPos = boneData.position.x || boneData.position.y || boneData.position.z;
+            const hasPos =
+              boneData.position.x || boneData.position.y || boneData.position.z;
             if (hasPos) {
               const isRootNode = (boneData as any).isRoot === true;
               if (isRootNode) {
@@ -805,7 +862,7 @@ export class SceneManager {
                   node.position.set(
                     boneData.initialPos.x,
                     boneData.initialPos.y,
-                    boneData.initialPos.z
+                    boneData.initialPos.z,
                   );
                 } else {
                   node.position.set(0, 0, 0);
@@ -817,15 +874,27 @@ export class SceneManager {
                 node.position.set(
                   x !== null ? x : (boneData.initialPos?.x ?? 0),
                   y !== null ? y : (boneData.initialPos?.y ?? 0),
-                  z !== null ? z : (boneData.initialPos?.z ?? 0)
+                  z !== null ? z : (boneData.initialPos?.z ?? 0),
                 );
               }
-              const metadata = node.metadata as { partTranslation?: { x: number; y: number; z: number } } | null;
+              const metadata = node.metadata as {
+                partTranslation?: { x: number; y: number; z: number };
+              } | null;
               if (metadata && metadata.partTranslation) {
-                node.position.addInPlace(new Vector3(metadata.partTranslation.x, metadata.partTranslation.y, metadata.partTranslation.z));
+                node.position.addInPlace(
+                  new Vector3(
+                    metadata.partTranslation.x,
+                    metadata.partTranslation.y,
+                    metadata.partTranslation.z,
+                  ),
+                );
               }
             }
-            const hasRot = boneData.rotation.x || boneData.rotation.y || boneData.rotation.z || boneData.rotation.w;
+            const hasRot =
+              boneData.rotation.x ||
+              boneData.rotation.y ||
+              boneData.rotation.z ||
+              boneData.rotation.w;
             if (hasRot) {
               const x = interpolate(boneData.rotation.x, frame);
               const y = interpolate(boneData.rotation.y, frame);
@@ -836,11 +905,16 @@ export class SceneManager {
                   node.rotationQuaternion = new Quaternion(x, y, z, w);
                   node.rotationQuaternion.normalize();
                 } else {
-                  node.rotationQuaternion = Quaternion.FromEulerAngles(x * TO_RAD, y * TO_RAD, z * TO_RAD);
+                  node.rotationQuaternion = Quaternion.FromEulerAngles(
+                    x * TO_RAD,
+                    y * TO_RAD,
+                    z * TO_RAD,
+                  );
                 }
               }
             }
-            const hasScale = boneData.scale.x || boneData.scale.y || boneData.scale.z;
+            const hasScale =
+              boneData.scale.x || boneData.scale.y || boneData.scale.z;
             if (hasScale) {
               const x = interpolate(boneData.scale.x, frame);
               const y = interpolate(boneData.scale.y, frame);
@@ -848,7 +922,7 @@ export class SceneManager {
               node.scaling.set(
                 x !== null ? x : (boneData.initialScale?.x ?? 1),
                 y !== null ? y : (boneData.initialScale?.y ?? 1),
-                z !== null ? z : (boneData.initialScale?.z ?? 1)
+                z !== null ? z : (boneData.initialScale?.z ?? 1),
               );
             }
           });
@@ -865,53 +939,88 @@ export class SceneManager {
               }
             }
             if (hasAny) {
-              const avatarObj = "avatar" in targetBone ? (targetBone as { avatar?: UnityObject }).avatar : undefined;
+              const avatarObj =
+                "avatar" in targetBone
+                  ? (targetBone as { avatar?: UnityObject }).avatar
+                  : undefined;
               applyHumanoidRotation(
                 targetBone,
                 muscleVals,
                 avatarObj || animData.avatar!,
-                humanBoneIndex
+                humanBoneIndex,
               );
             }
           });
         };
         const animatedNodes = new Set<TransformNode>();
         animData.bones.forEach((_, bone) => {
-          const node = "getTransformNode" in bone ? (bone as Bone).getTransformNode() : (bone as TransformNode);
+          const node =
+            "getTransformNode" in bone
+              ? (bone as Bone).getTransformNode()
+              : (bone as TransformNode);
           if (node) animatedNodes.add(node as TransformNode);
         });
         animData.muscles.forEach((_, bone) => {
-          const node = "getTransformNode" in bone ? (bone as Bone).getTransformNode() : (bone as TransformNode);
+          const node =
+            "getTransformNode" in bone
+              ? (bone as Bone).getTransformNode()
+              : (bone as TransformNode);
           if (node) animatedNodes.add(node as TransformNode);
         });
-        const nodeKeys = new Map<TransformNode, {
-          posKeys: any[],
-          rotKeys: any[],
-          scaleKeys: any[]
-        }>();
-        animatedNodes.forEach(node => {
+        const nodeKeys = new Map<
+          TransformNode,
+          {
+            posKeys: any[];
+            rotKeys: any[];
+            scaleKeys: any[];
+          }
+        >();
+        animatedNodes.forEach((node) => {
           nodeKeys.set(node, { posKeys: [], rotKeys: [], scaleKeys: [] });
         });
         for (let f = 0; f <= maxFrame; f++) {
           evaluateFrame(f);
-          animatedNodes.forEach(node => {
+          animatedNodes.forEach((node) => {
             const keys = nodeKeys.get(node)!;
             let hasPos = false;
             let hasRot = false;
             let hasScale = false;
             animData.bones.forEach((boneData, bone) => {
-              const bNode = "getTransformNode" in bone ? (bone as Bone).getTransformNode() : (bone as TransformNode);
+              const bNode =
+                "getTransformNode" in bone
+                  ? (bone as Bone).getTransformNode()
+                  : (bone as TransformNode);
               if (bNode === node) {
-                if (boneData.position.x || boneData.position.y || boneData.position.z) hasPos = true;
-                if (boneData.rotation.x || boneData.rotation.y || boneData.rotation.z || boneData.rotation.w) hasRot = true;
-                if (boneData.scale.x || boneData.scale.y || boneData.scale.z) hasScale = true;
+                if (
+                  boneData.position.x ||
+                  boneData.position.y ||
+                  boneData.position.z
+                )
+                  hasPos = true;
+                if (
+                  boneData.rotation.x ||
+                  boneData.rotation.y ||
+                  boneData.rotation.z ||
+                  boneData.rotation.w
+                )
+                  hasRot = true;
+                if (boneData.scale.x || boneData.scale.y || boneData.scale.z)
+                  hasScale = true;
               }
             });
             animData.muscles.forEach((muscleCurves, bone) => {
-              const bNode = "getTransformNode" in bone ? (bone as Bone).getTransformNode() : (bone as TransformNode);
+              const bNode =
+                "getTransformNode" in bone
+                  ? (bone as Bone).getTransformNode()
+                  : (bone as TransformNode);
               if (bNode === node) {
                 hasRot = true;
-                if (muscleCurves.some(mc => mc.humanBoneIndex === 0 && mc.axis.startsWith("pos_"))) {
+                if (
+                  muscleCurves.some(
+                    (mc) =>
+                      mc.humanBoneIndex === 0 && mc.axis.startsWith("pos_"),
+                  )
+                ) {
                   hasPos = true;
                 }
               }
@@ -920,7 +1029,9 @@ export class SceneManager {
               keys.posKeys.push({ frame: f, value: node.position.clone() });
             }
             if (hasRot) {
-              const q = node.rotationQuaternion ? node.rotationQuaternion.clone() : Quaternion.FromEulerVector(node.rotation);
+              const q = node.rotationQuaternion
+                ? node.rotationQuaternion.clone()
+                : Quaternion.FromEulerVector(node.rotation);
               keys.rotKeys.push({ frame: f, value: q });
             }
             if (hasScale) {
@@ -935,21 +1046,39 @@ export class SceneManager {
         nodeKeys.forEach((keys, node) => {
           const nodeAnims: any[] = [];
           if (keys.posKeys.length > 0) {
-            const anim = new Animation(node.name + "_pos", "position", frameRate, Animation.ANIMATIONTYPE_VECTOR3, Animation.ANIMATIONLOOPMODE_CYCLE);
+            const anim = new Animation(
+              node.name + "_pos",
+              "position",
+              frameRate,
+              Animation.ANIMATIONTYPE_VECTOR3,
+              Animation.ANIMATIONLOOPMODE_CYCLE,
+            );
             anim.setKeys(keys.posKeys);
             node.animations.push(anim);
             tempAnimGroup.addTargetedAnimation(anim, node);
             nodeAnims.push(anim);
           }
           if (keys.rotKeys.length > 0) {
-            const anim = new Animation(node.name + "_rot", "rotationQuaternion", frameRate, Animation.ANIMATIONTYPE_QUATERNION, Animation.ANIMATIONLOOPMODE_CYCLE);
+            const anim = new Animation(
+              node.name + "_rot",
+              "rotationQuaternion",
+              frameRate,
+              Animation.ANIMATIONTYPE_QUATERNION,
+              Animation.ANIMATIONLOOPMODE_CYCLE,
+            );
             anim.setKeys(keys.rotKeys);
             node.animations.push(anim);
             tempAnimGroup.addTargetedAnimation(anim, node);
             nodeAnims.push(anim);
           }
           if (keys.scaleKeys.length > 0) {
-            const anim = new Animation(node.name + "_scale", "scaling", frameRate, Animation.ANIMATIONTYPE_VECTOR3, Animation.ANIMATIONLOOPMODE_CYCLE);
+            const anim = new Animation(
+              node.name + "_scale",
+              "scaling",
+              frameRate,
+              Animation.ANIMATIONTYPE_VECTOR3,
+              Animation.ANIMATIONLOOPMODE_CYCLE,
+            );
             anim.setKeys(keys.scaleKeys);
             node.animations.push(anim);
             tempAnimGroup.addTargetedAnimation(anim, node);
@@ -971,7 +1100,7 @@ export class SceneManager {
             node.name.includes("SkeletonViewer") ||
             className.includes("Light") ||
             node.name.toLowerCase().includes("light") ||
-            node.name === "sceneRoot" && node.getChildren().length === 0
+            (node.name === "sceneRoot" && node.getChildren().length === 0)
           ) {
             return false;
           }
@@ -982,7 +1111,7 @@ export class SceneManager {
             return false;
           }
           return true;
-        }
+        },
       });
       updateProgress(90, "Triggering GLB download...");
       const blob = glbData.glTFFiles[exportName + ".glb"] as Blob;
@@ -995,7 +1124,10 @@ export class SceneManager {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        showNotification(`Successfully exported as ${exportName}.glb`, "success");
+        showNotification(
+          `Successfully exported as ${exportName}.glb`,
+          "success",
+        );
       } else {
         throw new Error("GLB serialization returned empty data.");
       }
@@ -1003,7 +1135,7 @@ export class SceneManager {
         tempAnimGroup.dispose();
       }
       createdAnimations.forEach(({ node, anims }) => {
-        anims.forEach(anim => {
+        anims.forEach((anim) => {
           const idx = node.animations.indexOf(anim);
           if (idx !== -1) {
             node.animations.splice(idx, 1);
@@ -1067,7 +1199,9 @@ export class SceneManager {
       const type = Object.keys(obj)[0];
       const data = obj[type] as Record<string, JSONValue> | undefined;
       const dataPathIdStr = data?.path_id ? String(data.path_id) : "";
-      const gameObj = data?.m_GameObject as Record<string, JSONValue> | undefined;
+      const gameObj = data?.m_GameObject as
+        | Record<string, JSONValue>
+        | undefined;
       const dataGOPathIdStr = gameObj?.path_id ? String(gameObj.path_id) : "";
       switch (type) {
         case "GameObject":
@@ -1075,8 +1209,14 @@ export class SceneManager {
           break;
         case "Transform":
           if (data) {
-            state.transformsByPathId.set(dataPathIdStr, data as never as UnityObject);
-            state.transformsByGameObjectId.set(dataGOPathIdStr, data as never as UnityObject);
+            state.transformsByPathId.set(
+              dataPathIdStr,
+              data as never as UnityObject,
+            );
+            state.transformsByGameObjectId.set(
+              dataGOPathIdStr,
+              data as never as UnityObject,
+            );
             lookup.transforms.set(dataPathIdStr, data);
             lookup.transformsByGo.set(dataGOPathIdStr, data);
           }
@@ -1089,7 +1229,8 @@ export class SceneManager {
           }
           break;
         case "Texture2D":
-          if (data) lookup.textures.set(dataPathIdStr, data as never as TextureMeta);
+          if (data)
+            lookup.textures.set(dataPathIdStr, data as never as TextureMeta);
           break;
         case "SkinnedMeshRenderer":
         case "MeshRenderer":
@@ -1101,15 +1242,34 @@ export class SceneManager {
         case "AnimationClip":
           if (data) {
             const clip = data;
-            const mMuscleClip = clip.m_MuscleClip as Record<string, JSONValue> | undefined;
-            const mmClip = mMuscleClip?.m_Clip as Record<string, JSONValue> | undefined;
+            const mMuscleClip = clip.m_MuscleClip as
+              | Record<string, JSONValue>
+              | undefined;
+            const mmClip = mMuscleClip?.m_Clip as
+              | Record<string, JSONValue>
+              | undefined;
             const mmClipData = mmClip?.data;
-            let streamClip = mmClip?.m_StreamedClip as Record<string, JSONValue> | undefined;
-            let denseClip = mmClip?.m_DenseClip as Record<string, JSONValue> | undefined;
-            if (mmClipData && typeof mmClipData === "object" && !Array.isArray(mmClipData) && !(mmClipData instanceof ArrayBuffer)) {
+            let streamClip = mmClip?.m_StreamedClip as
+              | Record<string, JSONValue>
+              | undefined;
+            let denseClip = mmClip?.m_DenseClip as
+              | Record<string, JSONValue>
+              | undefined;
+            if (
+              mmClipData &&
+              typeof mmClipData === "object" &&
+              !Array.isArray(mmClipData) &&
+              !(mmClipData instanceof ArrayBuffer)
+            ) {
               const clipDataObj = mmClipData as Record<string, JSONValue>;
-              if (!streamClip) streamClip = clipDataObj.m_StreamedClip as Record<string, JSONValue> | undefined;
-              if (!denseClip) denseClip = clipDataObj.m_DenseClip as Record<string, JSONValue> | undefined;
+              if (!streamClip)
+                streamClip = clipDataObj.m_StreamedClip as
+                  | Record<string, JSONValue>
+                  | undefined;
+              if (!denseClip)
+                denseClip = clipDataObj.m_DenseClip as
+                  | Record<string, JSONValue>
+                  | undefined;
             }
             const hasMuscleClipData =
               (mmClipData &&
@@ -1117,16 +1277,22 @@ export class SceneManager {
                   mmClipData instanceof ArrayBuffer)) ||
               (streamClip &&
                 Number(streamClip.curveCount ?? 0) > 0 &&
-                ((streamClip.data as ArrayLike<unknown> | undefined)?.length ?? 0) > 0) ||
+                ((streamClip.data as ArrayLike<unknown> | undefined)?.length ??
+                  0) > 0) ||
               (denseClip &&
                 Number(denseClip.m_CurveCount ?? 0) > 0 &&
                 ((denseClip.m_FrameCount ?? 0) as number) > 0);
             const hasCurves =
-              (Array.isArray(clip.m_RotationCurves) && clip.m_RotationCurves.length > 0) ||
-              (Array.isArray(clip.m_PositionCurves) && clip.m_PositionCurves.length > 0) ||
-              (Array.isArray(clip.m_ScaleCurves) && clip.m_ScaleCurves.length > 0) ||
-              (Array.isArray(clip.m_EulerCurves) && clip.m_EulerCurves.length > 0) ||
-              (Array.isArray(clip.m_FloatCurves) && clip.m_FloatCurves.length > 0);
+              (Array.isArray(clip.m_RotationCurves) &&
+                clip.m_RotationCurves.length > 0) ||
+              (Array.isArray(clip.m_PositionCurves) &&
+                clip.m_PositionCurves.length > 0) ||
+              (Array.isArray(clip.m_ScaleCurves) &&
+                clip.m_ScaleCurves.length > 0) ||
+              (Array.isArray(clip.m_EulerCurves) &&
+                clip.m_EulerCurves.length > 0) ||
+              (Array.isArray(clip.m_FloatCurves) &&
+                clip.m_FloatCurves.length > 0);
             if (hasMuscleClipData || hasCurves) {
               const clipName = String(data.name || "");
               if (!clipName.includes("Recorded")) {
@@ -1136,10 +1302,18 @@ export class SceneManager {
           }
           break;
         case "Animator":
-          if (data) state.animatorsByGameObjectId.set(dataGOPathIdStr, data as never as UnityObject);
+          if (data)
+            state.animatorsByGameObjectId.set(
+              dataGOPathIdStr,
+              data as never as UnityObject,
+            );
           break;
         case "Avatar":
-          if (data) state.avatarsByPathId.set(dataPathIdStr, data as never as UnityObject);
+          if (data)
+            state.avatarsByPathId.set(
+              dataPathIdStr,
+              data as never as UnityObject,
+            );
           break;
         case "Material":
           if (data) lookup.materials.set(dataPathIdStr, data);
@@ -1201,7 +1375,9 @@ export class SceneManager {
         for (const [pathId, t] of lookupData.transforms) {
           const currentRootId = findRootLocal(pathId, lookupData.transforms);
           if (currentRootId !== twistRootId) continue;
-          const gameObj = t.m_GameObject as Record<string, JSONValue> | undefined;
+          const gameObj = t.m_GameObject as
+            | Record<string, JSONValue>
+            | undefined;
           const goId = gameObj?.path_id || "";
           const go = lookupData.gameObjects.get(String(goId));
           if (go && go.name) {
@@ -1219,7 +1395,9 @@ export class SceneManager {
         for (const [pathId, t] of lookupData.transforms) {
           const currentRootId = findRootLocal(pathId, lookupData.transforms);
           if (currentRootId !== twistRootId) continue;
-          const gameObj = t.m_GameObject as Record<string, JSONValue> | undefined;
+          const gameObj = t.m_GameObject as
+            | Record<string, JSONValue>
+            | undefined;
           const goId = gameObj?.path_id || "";
           const go = lookupData.gameObjects.get(String(goId));
           if (go && go.name) {
@@ -1253,17 +1431,23 @@ export class SceneManager {
         let fatherIsTwist = false;
         if (fatherId !== "0" && fatherId !== "") {
           const fatherTransform = lookup.transforms.get(fatherId);
-          const fatherGameObj = fatherTransform?.m_GameObject as Record<string, JSONValue> | undefined;
+          const fatherGameObj = fatherTransform?.m_GameObject as
+            | Record<string, JSONValue>
+            | undefined;
           const fatherGoId = fatherGameObj?.path_id || "";
           const fatherGo = lookup.gameObjects.get(String(fatherGoId));
-          if (fatherGo && String(fatherGo.name).toLowerCase().includes("twist")) {
+          if (
+            fatherGo &&
+            String(fatherGo.name).toLowerCase().includes("twist")
+          ) {
             fatherIsTwist = true;
           }
         }
         if (!fatherIsTwist && goNameLower.includes("twist")) {
           let targets: string[] = [];
-           const has002ButNotBip = goNameLower.includes("002") && !goNameLower.includes("bip002");
-           const isRight =
+          const has002ButNotBip =
+            goNameLower.includes("002") && !goNameLower.includes("bip002");
+          const isRight =
             has002ButNotBip ||
             goNameLower.includes(".r") ||
             goNameLower.includes("_r") ||
@@ -1277,7 +1461,8 @@ export class SceneManager {
             goNameLower.includes("ruparm") ||
             goNameLower.includes("rfore") ||
             goNameLower.includes("rhand");
-          const has001ButNotBip = goNameLower.includes("001") && !goNameLower.includes("bip001");
+          const has001ButNotBip =
+            goNameLower.includes("001") && !goNameLower.includes("bip001");
           const isLeft =
             has001ButNotBip ||
             goNameLower.includes(".l") ||
@@ -1370,9 +1555,15 @@ export class SceneManager {
               lookup,
             );
             if (logicalParentPathId && logicalParentPathId !== path_idStr) {
-              (t as any).originalLocalPosition = t.m_LocalPosition ? { ...t.m_LocalPosition } : undefined;
-              (t as any).originalLocalRotation = t.m_LocalRotation ? { ...t.m_LocalRotation } : undefined;
-              (t as any).originalLocalScale = t.m_LocalScale ? { ...t.m_LocalScale } : undefined;
+              (t as any).originalLocalPosition = t.m_LocalPosition
+                ? { ...t.m_LocalPosition }
+                : undefined;
+              (t as any).originalLocalRotation = t.m_LocalRotation
+                ? { ...t.m_LocalRotation }
+                : undefined;
+              (t as any).originalLocalScale = t.m_LocalScale
+                ? { ...t.m_LocalScale }
+                : undefined;
               const oldWorldMatrix = getRelativeMatrix(
                 path_idStr,
                 rootPathId,
@@ -1419,7 +1610,10 @@ export class SceneManager {
       });
     }
   }
-  private createTransformNodes(lookup: Lookup, meshSourceFiles: Set<string>): Map<string, TransformNode> {
+  private createTransformNodes(
+    lookup: Lookup,
+    meshSourceFiles: Set<string>,
+  ): Map<string, TransformNode> {
     const transformNodes = new Map<string, TransformNode>();
     lookup.transforms.forEach((t, path_idStr) => {
       if (
@@ -1481,7 +1675,11 @@ export class SceneManager {
     });
     return transformNodes;
   }
-  private setupTransformHierarchy(lookup: Lookup, transformNodes: Map<string, TransformNode>, sceneRoot: TransformNode): void {
+  private setupTransformHierarchy(
+    lookup: Lookup,
+    transformNodes: Map<string, TransformNode>,
+    sceneRoot: TransformNode,
+  ): void {
     lookup.transforms.forEach((t, path_idStr) => {
       const node = transformNodes.get(path_idStr);
       if (!node) return;
@@ -1495,15 +1693,23 @@ export class SceneManager {
       }
     });
   }
-  private identifyUniqueRenderers(objects: UnityObject[], lookup: Lookup): {
+  private identifyUniqueRenderers(
+    objects: UnityObject[],
+    lookup: Lookup,
+  ): {
     uniqueRenderers: RendererRecord[];
-    meshBestRendererMap: Map<string, { renderer: RendererRecord; textureCount: number }>;
+    meshBestRendererMap: Map<
+      string,
+      { renderer: RendererRecord; textureCount: number }
+    >;
   } {
     const getRendererTextureScore = (renderer: RendererRecord) => {
       const resolvedTextureCount = (renderer.textures || []).filter((t) => {
         if (!t) return false;
         const texObj = t as Record<string, JSONValue>;
-        const id = texObj.texture ? String((texObj.texture as Record<string, JSONValue>).path_id || "") : String(texObj.path_id || "");
+        const id = texObj.texture
+          ? String((texObj.texture as Record<string, JSONValue>).path_id || "")
+          : String(texObj.path_id || "");
         return isValidPathId(id);
       }).length;
       const legacyTextureCount = (renderer.texture_path_ids || []).filter(
@@ -1511,9 +1717,14 @@ export class SceneManager {
       ).length;
       return Math.max(resolvedTextureCount, legacyTextureCount);
     };
-    const bestRendererByMeshName = new Map<string, { renderer: RendererRecord; textureCount: number }>();
+    const bestRendererByMeshName = new Map<
+      string,
+      { renderer: RendererRecord; textureCount: number }
+    >();
     objects.forEach((obj) => {
-      const renderer = (obj?.SkinnedMeshRenderer || obj?.MeshRenderer) as RendererRecord | undefined;
+      const renderer = (obj?.SkinnedMeshRenderer || obj?.MeshRenderer) as
+        | RendererRecord
+        | undefined;
       if (!renderer) return;
       const name =
         renderer.name || renderer.mesh?.name || `part_${renderer.path_id}`;
@@ -1542,9 +1753,7 @@ export class SceneManager {
       const goIdStr = renderer.m_GameObject?.path_id || "";
       const meshFilter = lookup.filtersByGo.get(goIdStr);
       const mMesh = meshFilter?.m_Mesh as Record<string, JSONValue> | undefined;
-      const meshId =
-        renderer.mesh_path_id ||
-        mMesh?.path_id;
+      const meshId = renderer.mesh_path_id || mMesh?.path_id;
       if (!meshId) return;
       const key = `${String(meshId)}_${renderer.sourceFileName || "default"}`;
       const textureCount = getRendererTextureScore(renderer);
@@ -1560,10 +1769,20 @@ export class SceneManager {
     lookup: Lookup,
     transformNodes: Map<string, TransformNode>,
     transformChildrenMap: Map<string, Set<string>>,
-    skeletons: Map<string, { skeleton: Skeleton; boneMap: Map<string, Bone>; hierarchyRootId: string }>,
+    skeletons: Map<
+      string,
+      {
+        skeleton: Skeleton;
+        boneMap: Map<string, Bone>;
+        hierarchyRootId: string;
+      }
+    >,
     allUsedBones: Set<string>,
-    meshBestRendererMap: Map<string, { renderer: RendererRecord; textureCount: number }>,
-    sceneRoot: TransformNode
+    meshBestRendererMap: Map<
+      string,
+      { renderer: RendererRecord; textureCount: number }
+    >,
+    sceneRoot: TransformNode,
   ): Promise<Mesh[]> {
     const createdMeshes: Mesh[] = [];
     let rendererIndex = 0;

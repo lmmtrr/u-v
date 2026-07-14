@@ -1,6 +1,6 @@
 import { Bone } from "@babylonjs/core/Bones/bone";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
-import { Quaternion } from "@babylonjs/core/Maths/math.vector";
+import { Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { Axis } from "@babylonjs/core/Maths/math.axis";
 import { normalizeHash } from "./utils";
 import type { UnityObject, JSONValue } from "./types";
@@ -77,140 +77,100 @@ export const HUMAN_BONE_NAMES = [
   "UpperChest",
   "LastBone",
 ];
-export const MUSCLE_TO_BONE: Record<number, { bone: number; axis: string }> = {
-  0: { bone: 0, axis: "pos_x" },
-  1: { bone: 0, axis: "pos_y" },
-  2: { bone: 0, axis: "pos_z" },
-  3: { bone: 0, axis: "x" },
-  4: { bone: 0, axis: "y" },
-  5: { bone: 0, axis: "z" },
-  6: { bone: 1, axis: "z" },
-  7: { bone: 1, axis: "y" },
-  8: { bone: 1, axis: "pos_z" },
-  9: { bone: 3, axis: "pos_x" },
-  10: { bone: 3, axis: "pos_y" },
-  11: { bone: 3, axis: "pos_z" },
-  12: { bone: 5, axis: "pos_x" },
-  13: { bone: 5, axis: "pos_y" },
-  14: { bone: 5, axis: "pos_z" },
-  21: { bone: 1, axis: "x" },
-  22: { bone: 1, axis: "z" },
-  23: { bone: 1, axis: "y" },
-  24: { bone: 3, axis: "x" },
-  25: { bone: 3, axis: "y" },
-  26: { bone: 5, axis: "x" },
-  27: { bone: 5, axis: "y" },
-  28: { bone: 19, axis: "x" },
-  15: { bone: 2, axis: "z" },
-  16: { bone: 2, axis: "y" },
-  17: { bone: 2, axis: "pos_z" },
-  18: { bone: 4, axis: "pos_x" },
-  19: { bone: 4, axis: "pos_y" },
-  20: { bone: 4, axis: "pos_z" },
-  29: { bone: 2, axis: "x" },
-  30: { bone: 2, axis: "z" },
-  31: { bone: 2, axis: "y" },
-  32: { bone: 4, axis: "x" },
-  33: { bone: 4, axis: "y" },
-  34: { bone: 6, axis: "x" },
-  35: { bone: 6, axis: "y" },
-  36: { bone: 20, axis: "x" },
-  37: { bone: 7, axis: "x" },
-  38: { bone: 7, axis: "z" },
-  39: { bone: 7, axis: "y" },
-  40: { bone: 8, axis: "x" },
-  41: { bone: 8, axis: "z" },
-  42: { bone: 8, axis: "y" },
-  43: { bone: 54, axis: "x" },
-  44: { bone: 54, axis: "z" },
-  45: { bone: 54, axis: "y" },
-  46: { bone: 9, axis: "x" },
-  47: { bone: 9, axis: "z" },
-  48: { bone: 9, axis: "y" },
-  49: { bone: 10, axis: "x" },
-  50: { bone: 10, axis: "z" },
-  51: { bone: 10, axis: "y" },
-  56: { bone: 11, axis: "z" },
-  57: { bone: 11, axis: "y" },
-  58: { bone: 13, axis: "x" },
-  59: { bone: 13, axis: "z" },
-  60: { bone: 13, axis: "y" },
-  61: { bone: 15, axis: "x" },
-  62: { bone: 15, axis: "y" },
-  63: { bone: 17, axis: "x" },
-  64: { bone: 17, axis: "z" },
-  65: { bone: 12, axis: "z" },
-  66: { bone: 12, axis: "y" },
-  67: { bone: 14, axis: "x" },
-  68: { bone: 14, axis: "z" },
-  69: { bone: 14, axis: "y" },
-  70: { bone: 16, axis: "x" },
-  71: { bone: 16, axis: "y" },
-  72: { bone: 18, axis: "x" },
-  73: { bone: 18, axis: "z" },
-  74: { bone: 24, axis: "x" },
-  75: { bone: 24, axis: "y" },
-  76: { bone: 24, axis: "z" },
-  77: { bone: 25, axis: "x" },
-  78: { bone: 25, axis: "y" },
-  79: { bone: 26, axis: "x" },
-  80: { bone: 26, axis: "y" },
-  81: { bone: 27, axis: "x" },
-  82: { bone: 27, axis: "y" },
-  83: { bone: 28, axis: "x" },
-  84: { bone: 28, axis: "y" },
-  85: { bone: 29, axis: "x" },
-  86: { bone: 29, axis: "y" },
-  87: { bone: 30, axis: "x" },
-  88: { bone: 30, axis: "y" },
-  89: { bone: 31, axis: "x" },
-  90: { bone: 31, axis: "y" },
-  91: { bone: 32, axis: "x" },
-  92: { bone: 32, axis: "y" },
-  93: { bone: 33, axis: "x" },
-  94: { bone: 33, axis: "y" },
-  95: { bone: 34, axis: "x" },
-  96: { bone: 34, axis: "y" },
-  97: { bone: 35, axis: "x" },
-  98: { bone: 35, axis: "y" },
-  99: { bone: 36, axis: "x" },
-  100: { bone: 36, axis: "y" },
-  101: { bone: 37, axis: "x" },
-  102: { bone: 37, axis: "y" },
-  103: { bone: 38, axis: "x" },
-  104: { bone: 38, axis: "y" },
-  105: { bone: 39, axis: "x" },
-  106: { bone: 39, axis: "y" },
-  107: { bone: 39, axis: "z" },
-  108: { bone: 40, axis: "x" },
-  109: { bone: 40, axis: "y" },
-  110: { bone: 41, axis: "x" },
-  111: { bone: 41, axis: "y" },
-  112: { bone: 42, axis: "x" },
-  113: { bone: 42, axis: "y" },
-  114: { bone: 43, axis: "x" },
-  115: { bone: 43, axis: "y" },
-  116: { bone: 44, axis: "x" },
-  117: { bone: 44, axis: "y" },
-  118: { bone: 45, axis: "x" },
-  119: { bone: 45, axis: "y" },
-  120: { bone: 46, axis: "x" },
-  121: { bone: 46, axis: "y" },
-  122: { bone: 47, axis: "x" },
-  123: { bone: 47, axis: "y" },
-  124: { bone: 48, axis: "x" },
-  125: { bone: 48, axis: "y" },
-  126: { bone: 49, axis: "x" },
-  127: { bone: 49, axis: "y" },
-  128: { bone: 50, axis: "x" },
-  129: { bone: 50, axis: "y" },
-  130: { bone: 51, axis: "x" },
-  131: { bone: 51, axis: "y" },
-  132: { bone: 52, axis: "x" },
-  133: { bone: 52, axis: "y" },
-  134: { bone: 53, axis: "x" },
-  135: { bone: 53, axis: "y" },
-};
+export const MUSCLE_TO_BONE: Record<number, { bone: number; axis: string }> =
+  (() => {
+    const map: Record<number, { bone: number; axis: string }> = {};
+    map[7] = { bone: 0, axis: "pos_x" };
+    map[8] = { bone: 0, axis: "pos_y" };
+    map[9] = { bone: 0, axis: "pos_z" };
+    map[10] = { bone: 0, axis: "quat_x" };
+    map[11] = { bone: 0, axis: "quat_y" };
+    map[12] = { bone: 0, axis: "quat_z" };
+    map[13] = { bone: 0, axis: "quat_w" };
+    const MUSCLES: Array<[number, string]> = [
+      [7, "z"],
+      [7, "y"],
+      [7, "x"],
+      [8, "z"],
+      [8, "y"],
+      [8, "x"],
+      [54, "z"],
+      [54, "y"],
+      [54, "x"],
+      [9, "z"],
+      [9, "y"],
+      [9, "x"],
+      [10, "z"],
+      [10, "y"],
+      [10, "x"],
+      [21, "z"],
+      [21, "y"],
+      [22, "z"],
+      [22, "y"],
+      [23, "z"],
+      [23, "y"],
+      [1, "z"],
+      [1, "y"],
+      [1, "x"],
+      [3, "z"],
+      [3, "x"],
+      [5, "z"],
+      [5, "x"],
+      [19, "z"],
+      [2, "z"],
+      [2, "y"],
+      [2, "x"],
+      [4, "z"],
+      [4, "x"],
+      [6, "z"],
+      [6, "x"],
+      [20, "z"],
+      [11, "z"],
+      [11, "y"],
+      [13, "z"],
+      [13, "y"],
+      [13, "x"],
+      [15, "z"],
+      [15, "x"],
+      [17, "z"],
+      [17, "y"],
+      [12, "z"],
+      [12, "y"],
+      [14, "z"],
+      [14, "y"],
+      [14, "x"],
+      [16, "z"],
+      [16, "x"],
+      [18, "z"],
+      [18, "y"],
+    ];
+    MUSCLES.forEach(([bone, axis], i) => {
+      map[42 + i] = { bone, axis };
+    });
+    let attr = 97;
+    for (const handBase of [24, 39]) {
+      for (let f = 0; f < 5; f++) {
+        const proximal = handBase + f * 3;
+        map[attr++] = { bone: proximal, axis: "z" };
+        map[attr++] = { bone: proximal, axis: "y" };
+        map[attr++] = { bone: proximal + 1, axis: "z" };
+        map[attr++] = { bone: proximal + 2, axis: "z" };
+      }
+    }
+    return map;
+  })();
+const PUBLIC_TO_INTERNAL_BONE_INDEX: Record<number, number> = (() => {
+  const map: Record<number, number> = {};
+  for (let i = 0; i <= 8; i++) map[i] = i;
+  const afterChest = [
+    9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+  ];
+  afterChest.forEach((publicIdx, i) => {
+    map[publicIdx] = 10 + i;
+  });
+  map[54] = 9;
+  return map;
+})();
 const avatarBoneMapCache = new Map<UnityObject, Map<number, number>>();
 const getSkeletonNodeIndex = (
   avatar: UnityObject,
@@ -247,7 +207,9 @@ const getSkeletonNodeIndex = (
     avatarBoneMapCache.set(avatar, map);
   }
   const boneMap = avatarBoneMapCache.get(avatar)!;
-  const nodeIdx = boneMap.get(humanBoneIndex);
+  const internalIndex = PUBLIC_TO_INTERNAL_BONE_INDEX[humanBoneIndex];
+  if (internalIndex === undefined) return -1;
+  const nodeIdx = boneMap.get(internalIndex);
   return nodeIdx === undefined ? -1 : nodeIdx;
 };
 export const getBonePathForHumanBone = (
@@ -277,37 +239,93 @@ export const getBonePathForHumanBone = (
   }
   return null;
 };
-export const applyHumanoidRotation = (
-  bone: Bone | TransformNode,
-  muscleValues: Record<string, number>,
-  avatar: UnityObject,
-  humanBoneIndex: number,
-) => {
-  if (!bone) return;
-  const node = (bone as Bone).getTransformNode
-    ? (bone as Bone).getTransformNode()!
-    : (bone as TransformNode);
-  if (!node.rotationQuaternion) {
-    node.rotationQuaternion = Quaternion.Identity();
-  }
-  const avatarAsset = (avatar.m_Avatar || avatar) as Record<string, JSONValue> | undefined;
-  const humanoidBones = avatarAsset?.humanoidBones as Record<string, any> | undefined;
-  const boneInfo = humanoidBones?.[String(humanBoneIndex)];
-  let preQData: any = null;
-  let postQData: any = null;
-  let limitMin: any = null;
-  let limitMax: any = null;
-  if (boneInfo) {
-    preQData = boneInfo.preQ;
-    postQData = boneInfo.postQ;
-    limitMin = boneInfo.limitMin;
-    limitMax = boneInfo.limitMax;
-  } else {
-    const hierarchyNodeIndex = getSkeletonNodeIndex(avatar, humanBoneIndex);
-    if (hierarchyNodeIndex < 0) return;
-    let hierarchy = (avatarAsset?.m_AvatarSkeleton || avatar.m_AvatarSkeleton) as
+const getXformT = (
+  xf: JSONValue | undefined,
+): { x: number; y: number; z: number } | null => {
+  if (!xf || typeof xf !== "object") return null;
+  const x = ((xf as Record<string, JSONValue>).data ?? xf) as Record<
+    string,
+    JSONValue
+  >;
+  const t = (x.t ?? x.m_T) as Record<string, JSONValue> | undefined;
+  if (!t) return null;
+  const tv = ((t as Record<string, JSONValue>).data ?? t) as Record<
+    string,
+    number
+  >;
+  if (typeof tv.x !== "number") return null;
+  return { x: tv.x, y: tv.y ?? 0, z: tv.z ?? 0 };
+};
+const getHumanScale = (avatar: UnityObject): number => {
+  const avatarAsset = (avatar.m_Avatar || avatar) as
+    | Record<string, JSONValue>
+    | undefined;
+  let human = (avatarAsset?.m_Human || avatar.m_Human) as
+    | Record<string, JSONValue>
+    | undefined;
+  if (human && human.data) human = human.data as Record<string, JSONValue>;
+  const s = Number(human?.m_Scale ?? 1);
+  return isFinite(s) && s > 0 ? s : 1;
+};
+type RootX = { t: { x: number; y: number; z: number }; q: Quaternion };
+const rootXCache = new Map<UnityObject, RootX | null>();
+const getRootX = (avatar: UnityObject): RootX | null => {
+  if (rootXCache.has(avatar)) return rootXCache.get(avatar)!;
+  const result = (() => {
+    const avatarAsset = (avatar.m_Avatar || avatar) as
       | Record<string, JSONValue>
       | undefined;
+    let human = (avatarAsset?.m_Human || avatar.m_Human) as
+      | Record<string, JSONValue>
+      | undefined;
+    if (human && human.data) human = human.data as Record<string, JSONValue>;
+    let rootX = human?.m_RootX as Record<string, JSONValue> | undefined;
+    if (rootX && rootX.data) rootX = rootX.data as Record<string, JSONValue>;
+    if (!rootX) return null;
+    const t = (rootX.t ?? rootX.m_T) as Record<string, number> | undefined;
+    const q = (rootX.q ?? rootX.m_Q) as Record<string, number> | undefined;
+    if (!t || !q || typeof t.x !== "number" || typeof q.x !== "number")
+      return null;
+    return {
+      t: { x: t.x, y: t.y ?? 0, z: t.z ?? 0 },
+      q: new Quaternion(q.x, q.y ?? 0, q.z ?? 0, q.w ?? 1),
+    };
+  })();
+  rootXCache.set(avatar, result);
+  return result;
+};
+type ResolvedBoneAxes = {
+  preQData: Record<string, number>;
+  postQData: Record<string, number>;
+  limitMin: Record<string, number>;
+  limitMax: Record<string, number>;
+  sgnData: Record<string, number> | null;
+  tposeT: { x: number; y: number; z: number } | null;
+};
+const resolvedBoneAxesCache = new Map<
+  UnityObject,
+  Map<number, ResolvedBoneAxes | null>
+>();
+const getResolvedBoneAxes = (
+  avatar: UnityObject,
+  humanBoneIndex: number,
+): ResolvedBoneAxes | null => {
+  let perAvatar = resolvedBoneAxesCache.get(avatar);
+  if (!perAvatar) {
+    perAvatar = new Map();
+    resolvedBoneAxesCache.set(avatar, perAvatar);
+  }
+  if (perAvatar.has(humanBoneIndex)) {
+    return perAvatar.get(humanBoneIndex)!;
+  }
+  const result = (() => {
+    const avatarAsset = (avatar.m_Avatar || avatar) as
+      | Record<string, JSONValue>
+      | undefined;
+    const hierarchyNodeIndex = getSkeletonNodeIndex(avatar, humanBoneIndex);
+    if (hierarchyNodeIndex < 0) return null;
+    let hierarchy = (avatarAsset?.m_AvatarSkeleton ||
+      avatar.m_AvatarSkeleton) as Record<string, JSONValue> | undefined;
     if (hierarchy && hierarchy.data)
       hierarchy = hierarchy.data as Record<string, JSONValue>;
     let human = (avatarAsset?.m_Human || avatar.m_Human) as
@@ -322,13 +340,34 @@ export const applyHumanoidRotation = (
     const hNode = hierarchy?.m_Node as
       | Array<Record<string, JSONValue>>
       | undefined;
-    if (!hierarchy || !hNode || hierarchyNodeIndex >= hNode.length) return;
+    if (!hierarchy || !hNode || hierarchyNodeIndex >= hNode.length) return null;
     let rigNodeIndex = -1;
     const reverseMap = avatarAsset?.m_HumanSkeletonReverseIndexArray as
       | number[]
       | undefined;
     if (reverseMap && hierarchyNodeIndex < reverseMap.length) {
       rigNodeIndex = reverseMap[hierarchyNodeIndex];
+    }
+    let tposeT: { x: number; y: number; z: number } | null = null;
+    let skeletonPose = human
+      ? (human.m_SkeletonPose as Record<string, JSONValue> | undefined)
+      : undefined;
+    if (skeletonPose && skeletonPose.data)
+      skeletonPose = skeletonPose.data as Record<string, JSONValue>;
+    const poseX = skeletonPose?.m_X as Array<JSONValue> | undefined;
+    if (poseX && rigNodeIndex >= 0 && rigNodeIndex < poseX.length) {
+      tposeT = getXformT(poseX[rigNodeIndex]);
+    }
+    if (!tposeT) {
+      let defaultPose = avatarAsset?.m_DefaultPose as
+        | Record<string, JSONValue>
+        | undefined;
+      if (defaultPose && defaultPose.data)
+        defaultPose = defaultPose.data as Record<string, JSONValue>;
+      const dX = defaultPose?.m_X as Array<JSONValue> | undefined;
+      if (dX && hierarchyNodeIndex < dX.length) {
+        tposeT = getXformT(dX[hierarchyNodeIndex]);
+      }
     }
     const hrAxesArray = humanRig?.m_AxesArray as
       | Record<string, JSONValue>[]
@@ -342,33 +381,114 @@ export const applyHumanoidRotation = (
     const swNode = skeletonWithAxes.m_Node as
       | Array<Record<string, JSONValue>>
       | undefined;
-    if (!swNode || nodeIdx < 0 || nodeIdx >= swNode.length) return;
+    if (!swNode || nodeIdx < 0 || nodeIdx >= swNode.length) return null;
     const axesId = Number(swNode[nodeIdx].m_AxesId ?? -1);
     const swAxesArray = skeletonWithAxes.m_AxesArray as
       | Array<Record<string, JSONValue>>
       | undefined;
-    if (axesId < 0 || !swAxesArray || axesId >= swAxesArray.length) return;
+    if (axesId < 0 || !swAxesArray || axesId >= swAxesArray.length) return null;
     const axes = swAxesArray[axesId];
-    if (!axes) return;
+    if (!axes) return null;
     const limit = axes.m_Limit as Record<string, JSONValue> | undefined;
-    if (!limit) return;
-    limitMin = limit.m_Min as Record<string, number> | undefined;
-    limitMax = limit.m_Max as Record<string, number> | undefined;
-    preQData = axes.m_PreQ as Record<string, number> | undefined;
-    postQData = axes.m_PostQ as Record<string, number> | undefined;
+    if (!limit) return null;
+    const limitMin = limit.m_Min as Record<string, number> | undefined;
+    const limitMax = limit.m_Max as Record<string, number> | undefined;
+    const preQData = axes.m_PreQ as Record<string, number> | undefined;
+    const postQData = axes.m_PostQ as Record<string, number> | undefined;
+    const sgnData = (axes.m_Sgn as Record<string, number> | undefined) || null;
+    if (!preQData || !postQData || !limitMin || !limitMax) return null;
+    return { preQData, postQData, limitMin, limitMax, sgnData, tposeT };
+  })();
+  perAvatar.set(humanBoneIndex, result);
+  return result;
+};
+export const applyHumanoidRotation = (
+  bone: Bone | TransformNode,
+  muscleValues: Record<string, number>,
+  avatar: UnityObject,
+  humanBoneIndex: number,
+) => {
+  if (!bone) return;
+  const node = (bone as Bone).getTransformNode
+    ? (bone as Bone).getTransformNode()!
+    : (bone as TransformNode);
+  if (!node.rotationQuaternion) {
+    node.rotationQuaternion = Quaternion.Identity();
   }
-  if (!preQData || !postQData || !limitMin || !limitMax) return;
+  if (humanBoneIndex === 0) {
+    const rootX = getRootX(avatar);
+    const metadata = node.metadata as
+      | {
+          initialRotationQuaternion?: Quaternion | null;
+          initialPosition?: Vector3;
+        }
+      | null
+      | undefined;
+    const bindRot =
+      metadata?.initialRotationQuaternion ?? Quaternion.Identity();
+    const bindPos = metadata?.initialPosition ?? Vector3.Zero();
+    if (
+      muscleValues["quat_x"] !== undefined ||
+      muscleValues["quat_y"] !== undefined ||
+      muscleValues["quat_z"] !== undefined ||
+      muscleValues["quat_w"] !== undefined
+    ) {
+      const q = new Quaternion(
+        muscleValues["quat_x"] ?? 0,
+        muscleValues["quat_y"] ?? 0,
+        muscleValues["quat_z"] ?? 0,
+        muscleValues["quat_w"] ?? 1,
+      );
+      if (q.length() > 1e-6) {
+        q.normalize();
+        const hipsRot = rootX
+          ? q.multiply(Quaternion.Inverse(rootX.q)).multiply(bindRot)
+          : q;
+        node.rotationQuaternion.copyFrom(hipsRot);
+      }
+    }
+    if (
+      muscleValues["pos_x"] !== undefined ||
+      muscleValues["pos_y"] !== undefined ||
+      muscleValues["pos_z"] !== undefined
+    ) {
+      const scale = getHumanScale(avatar);
+      const rawPos = new Vector3(
+        (muscleValues["pos_x"] || 0) * scale,
+        (muscleValues["pos_y"] || 0) * scale,
+        (muscleValues["pos_z"] || 0) * scale,
+      );
+      const hipsPos = rootX
+        ? rawPos
+            .subtract(new Vector3(rootX.t.x, rootX.t.y, rootX.t.z))
+            .add(bindPos)
+        : rawPos;
+      node.position.copyFrom(hipsPos);
+    }
+    return;
+  }
+  const resolved = getResolvedBoneAxes(avatar, humanBoneIndex);
+  if (!resolved) return;
+  const { preQData, postQData, limitMin, limitMax, sgnData } = resolved;
   const angles = { x: 0, y: 0, z: 0 };
   (["x", "y", "z"] as const).forEach((axis) => {
     const val = muscleValues[axis] || 0;
     const min = limitMin[axis] ?? 0;
     const max = limitMax[axis] ?? 0;
-    angles[axis] = val > 0 ? val * max : val * Math.abs(min);
+    const sgn = sgnData ? (sgnData[axis] ?? 1) : 1;
+    angles[axis] = (val > 0 ? val * max : val * Math.abs(min)) * sgn;
   });
-  const qx = Quaternion.RotationAxis(Axis.X, angles.x);
-  const qy = Quaternion.RotationAxis(Axis.Y, angles.y);
-  const qz = Quaternion.RotationAxis(Axis.Z, angles.z);
-  const muscleRot = qy.multiply(qx).multiply(qz);
+  const swingLen = Math.sqrt(angles.y * angles.y + angles.z * angles.z);
+  let muscleRot: Quaternion;
+  if (swingLen > 1e-8) {
+    const swingAxis = new Vector3(0, angles.y / swingLen, angles.z / swingLen);
+    muscleRot = Quaternion.RotationAxis(swingAxis, swingLen);
+  } else {
+    muscleRot = Quaternion.Identity();
+  }
+  if (angles.x !== 0) {
+    muscleRot = muscleRot.multiply(Quaternion.RotationAxis(Axis.X, angles.x));
+  }
   const preQ = new Quaternion(
     preQData.x ?? 0,
     preQData.y ?? 0,
@@ -383,23 +503,4 @@ export const applyHumanoidRotation = (
   );
   const invPostQ = Quaternion.Inverse(postQ);
   node.rotationQuaternion.copyFrom(preQ.multiply(muscleRot).multiply(invPostQ));
-  if (humanBoneIndex === 0) {
-    const pos =
-      "m_Translation" in bone
-        ? (bone as { m_Translation?: { x: number; y: number; z: number } })
-            .m_Translation
-        : undefined;
-    const posX = muscleValues["pos_x"] || 0;
-    const posY = muscleValues["pos_y"] || 0;
-    const posZ = muscleValues["pos_z"] || 0;
-    if (
-      muscleValues["pos_x"] !== undefined ||
-      muscleValues["pos_y"] !== undefined ||
-      muscleValues["pos_z"] !== undefined
-    ) {
-      node.position.set(posX, posY, -posZ);
-    } else if (pos) {
-      node.position.set(pos.x, pos.y, -pos.z);
-    }
-  }
 };
