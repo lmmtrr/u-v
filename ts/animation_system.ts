@@ -1,4 +1,4 @@
-import { Vector3, Quaternion } from "@babylonjs/core/Maths/math.vector";
+import { Vector3, Quaternion, Matrix } from "@babylonjs/core/Maths/math.vector";
 import { Space } from "@babylonjs/core/Maths/math.axis";
 import { Scene } from "@babylonjs/core/scene";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
@@ -22,6 +22,7 @@ import {
 import { interpolate } from "./animation_interpolator";
 type SkeletonWithAvatar = {
   avatar?: UnityObject;
+  avatarIsGenuine?: boolean;
   bones?: Bone[];
 };
 const TO_RAD = Math.PI / 180;
@@ -219,6 +220,9 @@ export const buildAnimationData = (
       if (mapping) {
         for (const mesh of createdMeshes) {
           if (mesh.skeleton && mesh.metadata?.hashToBoneMap) {
+            if (!(mesh.skeleton as SkeletonWithAvatar).avatarIsGenuine) {
+              continue;
+            }
             const skeletonAvatar =
               (mesh.skeleton as SkeletonWithAvatar).avatar ||
               animationData.avatar;
@@ -709,6 +713,13 @@ export const buildAnimationData = (
 };
 const tempVec = new Vector3();
 const tempQuat = new Quaternion();
+const attachTempMat1 = new Matrix();
+const attachTempMat2 = new Matrix();
+const attachTempMat3 = new Matrix();
+const attachTempScale = new Vector3();
+const attachTempPos = new Vector3();
+const attachTempRot = new Quaternion();
+const attachPreparedSkeletons = new Set<unknown>();
 export const createAnimationObserver = (
   scene: Scene,
   state: ViewerState,
@@ -906,6 +917,29 @@ export const createAnimationObserver = (
         }
       },
     );
+    if (state.genericPartAttachments && state.genericPartAttachments.length > 0) {
+      attachPreparedSkeletons.clear();
+      state.genericPartAttachments.forEach((attachment) => {
+        const { partNode, humanBone, partBindAbsolute, humanBoneBindAbsolute } =
+          attachment;
+        const humanSkeleton = humanBone.getSkeleton();
+        if (!attachPreparedSkeletons.has(humanSkeleton)) {
+          humanSkeleton.prepare(true);
+          attachPreparedSkeletons.add(humanSkeleton);
+        }
+        const humanBoneCurrentAbsolute = humanBone.getAbsoluteMatrix();
+        humanBoneBindAbsolute.invertToRef(attachTempMat1);
+        partBindAbsolute.multiplyToRef(attachTempMat1, attachTempMat2);
+        attachTempMat2.multiplyToRef(humanBoneCurrentAbsolute, attachTempMat3);
+        attachTempMat3.decompose(attachTempScale, attachTempRot, attachTempPos);
+        partNode.position.copyFrom(attachTempPos);
+        if (!partNode.rotationQuaternion) {
+          partNode.rotationQuaternion = attachTempRot.clone();
+        } else {
+          partNode.rotationQuaternion.copyFrom(attachTempRot);
+        }
+      });
+    }
     state.currentAnimationData.morphs.forEach((curve: { time: number; frame: number; value: number }[], target: MorphTarget) => {
       const val = interpolate(curve, frame);
       if (val !== null) {

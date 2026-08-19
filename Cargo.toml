@@ -8,7 +8,7 @@ name = "u_v"
 crate-type = ["cdylib"]
 
 [dependencies]
-unityfs = "0.1.0"
+unityfs = "0.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde-wasm-bindgen = "0.6"
@@ -27,12 +27,6 @@ opt-level = 3
 opt-level = 3
 [profile.dev.package.lzma-rs]
 opt-level = 3
-[profile.dev.package.sevenz-rust2]
-opt-level = 3
-[profile.dev.package.lzma-rust2]
-opt-level = 3
-[profile.dev.package.zip]
-opt-level = 3
 [profile.dev.package.texture2ddecoder]
 opt-level = 3
 [profile.dev.package.image]
@@ -40,8 +34,6 @@ opt-level = 3
 [profile.dev.package.flate2]
 opt-level = 3
 [profile.dev.package.miniz_oxide]
-opt-level = 3
-[profile.dev.package.brotli-decompressor]
 opt-level = 3
 [profile.dev.package.png]
 opt-level = 3

@@ -153,3 +153,64 @@ export const createSkeletonForBones = (
   });
   return skeletonData;
 };
+export type GenericPartAttachment = {
+  partNode: TransformNode;
+  humanBone: Bone;
+  partBindAbsolute: Matrix;
+  humanBoneBindAbsolute: Matrix;
+};
+const findDeepestNameMatch = (
+  root: Bone,
+  nameToHumanBone: Map<string, Bone>,
+): { humanBone: Bone; depth: number } | null => {
+  let best: { humanBone: Bone; depth: number } | null = null;
+  const walk = (b: Bone, depth: number) => {
+    const match = nameToHumanBone.get(b.name);
+    if (match && (!best || depth > best.depth)) {
+      best = { humanBone: match, depth };
+    }
+    b.getChildren().forEach((c) => walk(c, depth + 1));
+  };
+  walk(root, 0);
+  return best;
+};
+export const computeGenericPartAttachments = (
+  skeletons: Map<
+    string,
+    { skeleton: Skeleton; boneMap: Map<string, Bone>; hierarchyRootId: string }
+  >,
+): GenericPartAttachment[] => {
+  const attachments: GenericPartAttachment[] = [];
+  const humanSkeletons: Skeleton[] = [];
+  skeletons.forEach(({ skeleton }) => {
+    if ((skeleton as { avatarIsGenuine?: boolean }).avatarIsGenuine) {
+      humanSkeletons.push(skeleton);
+    }
+  });
+  if (humanSkeletons.length === 0) return attachments;
+  humanSkeletons.forEach((s) => s.computeAbsoluteMatrices(true));
+  const nameToHumanBone = new Map<string, Bone>();
+  humanSkeletons.forEach((s) => {
+    s.bones.forEach((b) => {
+      if (!nameToHumanBone.has(b.name)) nameToHumanBone.set(b.name, b);
+    });
+  });
+  skeletons.forEach(({ skeleton }) => {
+    if ((skeleton as { avatarIsGenuine?: boolean }).avatarIsGenuine) return;
+    skeleton.computeAbsoluteMatrices(true);
+    const roots = skeleton.bones.filter((b) => !b.getParent());
+    roots.forEach((root) => {
+      const match = findDeepestNameMatch(root, nameToHumanBone);
+      if (!match) return;
+      const partNode = root.getTransformNode();
+      if (!partNode) return;
+      attachments.push({
+        partNode,
+        humanBone: match.humanBone,
+        partBindAbsolute: root.getAbsoluteMatrix().clone(),
+        humanBoneBindAbsolute: match.humanBone.getAbsoluteMatrix().clone(),
+      });
+    });
+  });
+  return attachments;
+};

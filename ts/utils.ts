@@ -50,7 +50,6 @@ export const getBindingPath = (binding: UnityObject, allObjectHash?: Map<string,
   }
   if (typeof binding.path === 'string') return binding.path;
   if (typeof binding.m_Path === 'string') return binding.m_Path;
-  if (pathHash !== undefined) return normalizeHash(pathHash);
   return "";
 };
 export function getSortableKey(str: string | number, padLength: number = 16): string {

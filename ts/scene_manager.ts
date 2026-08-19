@@ -38,7 +38,7 @@ import type {
 import { processOrphanedMeshes } from "./orphan_resolver";
 import { resolveRendererTextures, isValidPathId } from "./texture_resolver";
 import { instantiateMesh, getRelativeMatrix } from "./mesh_builder";
-import { findRoot } from "./bone_system";
+import { findRoot, computeGenericPartAttachments } from "./bone_system";
 type Lookup = {
   gameObjects: Map<string, Record<string, JSONValue>>;
   transforms: Map<string, Record<string, JSONValue>>;
@@ -745,6 +745,7 @@ export class SceneManager {
       sceneRoot,
     );
     state.createdMeshes = createdMeshes;
+    state.genericPartAttachments = computeGenericPartAttachments(skeletons);
     if (state.showSkeletons) {
       skeletons.forEach((data) => {
         const targetMesh =

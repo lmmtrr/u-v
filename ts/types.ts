@@ -6,6 +6,7 @@ import type { Observer } from "@babylonjs/core/Misc/observable";
 import type { Scene } from "@babylonjs/core/scene";
 import type { Bone } from "@babylonjs/core/Bones/bone";
 import type { MorphTarget } from "@babylonjs/core/Morph/morphTarget";
+import type { GenericPartAttachment } from "./bone_system";
 export type PathId = string;
 export type JSONValue =
   | string
@@ -115,6 +116,7 @@ export interface ViewerState {
   animationLoop: boolean;
   animationSpeed: number;
   createdMeshes: Mesh[];
+  genericPartAttachments: GenericPartAttachment[];
   animatorsByGameObjectId: Map<string, UnityObject>;
   avatarsByPathId: Map<string, UnityObject>;
   transformsByGameObjectId: Map<string, UnityObject>;

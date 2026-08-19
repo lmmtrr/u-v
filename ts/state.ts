@@ -10,6 +10,7 @@ import type {
   AnimationData,
   UnityObject,
 } from "./types";
+import type { GenericPartAttachment } from "./bone_system";
 export interface LoadedFile extends LoadedFileType {}
 export interface AnimationClipItem {
   name: string;
@@ -26,6 +27,7 @@ export const state: ViewerState = {
   animationLoop: true,
   animationSpeed: 1.0,
   createdMeshes: [] as Mesh[],
+  genericPartAttachments: [] as GenericPartAttachment[],
   animatorsByGameObjectId: new Map<string, UnityObject>(),
   avatarsByPathId: new Map<string, UnityObject>(),
   transformsByGameObjectId: new Map<string, UnityObject>(),
@@ -61,6 +63,7 @@ export const state: ViewerState = {
     this.physicsObserver = null;
     this.animationClips = [];
     this.createdMeshes = [];
+    this.genericPartAttachments = [];
     this.animationPlaying = false;
     this._warnedEmptyAnim = false;
   },

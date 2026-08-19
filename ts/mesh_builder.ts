@@ -9,7 +9,6 @@ import { VertexBuffer } from "@babylonjs/core/Buffers/buffer";
 import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData";
 import { MorphTargetManager } from "@babylonjs/core/Morph/morphTargetManager";
 import { MorphTarget } from "@babylonjs/core/Morph/morphTarget";
-import { MultiMaterial } from "@babylonjs/core/Materials/multiMaterial";
 import { createSkeletonForBones, findRoot } from "./bone_system";
 import { createMaterial, createMultiMaterial } from "./renderer_utils";
 import { computeCRC32, normalizeHash } from "./utils";
@@ -20,6 +19,7 @@ export const getRelativeMatrix = (
   startPathId: string,
   endPathId: string,
   transformsByPathId: Map<string, UnityObject>,
+  ignoreTranslation: boolean = false,
 ): Matrix => {
   let matrix = Matrix.Identity();
   let currentId = String(startPathId);
@@ -35,6 +35,13 @@ export const getRelativeMatrix = (
     const scale = t.m_LocalScale as Record<string, JSONValue> | undefined;
     const rot = t.m_LocalRotation as Record<string, JSONValue> | undefined;
     const pos = t.m_LocalPosition as Record<string, JSONValue> | undefined;
+    const translation = (!ignoreTranslation && pos)
+      ? new Vector3(
+          Number(pos.x),
+          Number(pos.y),
+          Number(pos.z),
+        )
+      : Vector3.Zero();
     const local = Matrix.Compose(
       scale
         ? new Vector3(Number(scale.x), Number(scale.y), Number(scale.z))
@@ -47,13 +54,7 @@ export const getRelativeMatrix = (
             Number(rot.w),
           )
         : Quaternion.Identity(),
-      pos
-        ? new Vector3(
-            Number(pos.x),
-            Number(pos.y),
-            Number(pos.z),
-          )
-        : Vector3.Zero(),
+      translation,
     );
     matrix = local.multiply(matrix);
     const father = t.m_Father as Record<string, JSONValue> | undefined;
@@ -137,6 +138,7 @@ export async function instantiateMesh(
         transformIdStr,
         rootId,
         state.transformsByPathId,
+        true,
       );
     } else {
       const node = transformNodes.get(transformIdStr);
@@ -218,6 +220,7 @@ export async function instantiateMesh(
       customMesh.skeleton = skeleton;
       (customMesh as { useDualQuaternionSkinning?: boolean }).useDualQuaternionSkinning = true;
       let skeletonAvatar: Record<string, JSONValue> | null = null;
+      let skeletonHasOwnAvatar = false;
       let currentGoId = goIdStr;
       while (currentGoId && currentGoId !== "0") {
         const animator = state.animatorsByGameObjectId?.get(currentGoId);
@@ -230,7 +233,10 @@ export async function instantiateMesh(
           skeletonAvatar = state.avatarsByPathId?.get(
             String(animatorAvatar.path_id),
           ) || null;
-          if (skeletonAvatar) break;
+          if (skeletonAvatar) {
+            skeletonHasOwnAvatar = true;
+            break;
+          }
         }
         const transform = state.transformsByGameObjectId?.get(currentGoId);
         const tfFather = transform?.m_Father as Record<string, JSONValue> | undefined;
@@ -267,7 +273,10 @@ export async function instantiateMesh(
             skeletonAvatar = state.avatarsByPathId?.get(
               String(animatorAvatar.path_id),
             ) || null;
-            if (skeletonAvatar) break;
+            if (skeletonAvatar) {
+              skeletonHasOwnAvatar = true;
+              break;
+            }
           }
           currentTransformId = String((transform.m_Father as Record<string, JSONValue> | undefined)?.path_id || "0");
         }
@@ -280,6 +289,7 @@ export async function instantiateMesh(
         skeletonAvatar = state.avatarsByPathId.values().next().value || null;
       }
       (skeleton as { avatar?: Record<string, JSONValue> | null }).avatar = skeletonAvatar;
+      (skeleton as { avatarIsGenuine?: boolean }).avatarIsGenuine = skeletonHasOwnAvatar;
       const rootNode = transformNodes.get(hierarchyRootId);
       if (rootNode) customMesh.parent = hasSkin ? sceneRoot : rootNode;
       const rendererIdStr = String(renderer.path_id || "");

@@ -784,29 +784,6 @@ impl Environment {
                     }
                 }
             }
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                let mut dump_content = String::new();
-                for sf in asset_manager.files.values() {
-                    if sf.enable_type_tree {
-                        for t in &sf.types {
-                            if [1, 4, 21, 23, 28, 33, 43, 74, 90, 91, 95, 114, 115, 137, 224].contains(&t.class_id) && !t.nodes.is_empty() {
-                                dump_content.push_str(&format!("// DUMP_START CLASS_ID: {}\n", t.class_id));
-                                for n in t.nodes.iter() {
-                                    dump_content.push_str(&format!(
-                                        "nodes.push(TypeTreeNode {{ m_Version: {}, m_Level: {}, m_IsArray: {}, m_ByteSize: {}, m_Index: {}, m_MetaFlag: {}, m_Type: \"{}\".to_string(), m_Name: \"{}\".to_string(), m_TypeStrOffset: 0, m_NameStrOffset: 0, m_RefTypeHash: 0 }});\n",
-                                        n.m_Version, n.m_Level, n.m_IsArray, n.m_ByteSize, n.m_Index, n.m_MetaFlag, n.m_Type, n.m_Name
-                                    ));
-                                }
-                                dump_content.push_str(&format!("// DUMP_END CLASS_ID: {}\n", t.class_id));
-                            }
-                        }
-                    }
-                }
-                if !dump_content.is_empty() {
-                    let _ = std::fs::write("typetree_dump.txt", dump_content);
-                }
-            }
             for (asset_name, sf) in asset_manager.files.iter() {
                 for obj_info in sf.objects.iter() {
                     let class_id = obj_info.class_id;
@@ -1073,7 +1050,7 @@ impl Environment {
     pub fn getObjectHash(&self) -> String {
         serde_json::to_string(&self.object_hash).unwrap_or_else(|_| "{}".to_string())
     }
-    fn read_object(&self, path_id: i64, source_file: Option<String>, expected_class_id: Option<i32>) -> Option<UnityValue> {
+    pub(crate) fn read_object(&self, path_id: i64, source_file: Option<String>, expected_class_id: Option<i32>) -> Option<UnityValue> {
         let simplified_source = source_file.as_ref().map(|s| simplify_name_rust(s));
         let has_matching_object = |sf: &SerializedFile| {
             sf.objects.iter().any(|obj| {
@@ -1348,17 +1325,17 @@ impl Environment {
     pub fn getTextureData(&self, path_id: JsValue, source_file: JsValue) -> Option<Uint8Array> {
         let path_id = Self::parse_path_id(&path_id)?;
         let src_file = source_file.as_string();
-        let val = self.read_object(path_id, src_file, Some(28))?;
+        let val = self.read_object(path_id, src_file.clone(), Some(28))?;
         let tex = Texture2D::try_from_unity_value(&val).ok()?;
         let mut payload: Option<Vec<u8>> = None;
         if let Some(data) = &tex.image_data {
-            if !data.0.is_empty() {
+            if data.0.len() > 1 {
                 payload = Some(data.0.clone());
             }
         }
         if payload.is_none() {
             if let Some(stream) = &tex.m_StreamData {
-                if stream.size > 0 {
+                if stream.size > 0 && !stream.path.is_empty() {
                     let stream_name = stream.path.rsplit('/').next().unwrap_or(&stream.path);
                     if let Some(raw_data) = self.asset_manager.raw_files.get(stream_name) {
                         let offset = stream.offset as usize;
@@ -1366,6 +1343,54 @@ impl Environment {
                         if offset + size <= raw_data.len() {
                             payload = Some(raw_data[offset..offset+size].to_vec());
                         }
+                    }
+                }
+            }
+        }
+        if payload.is_none() {
+            let try_extract_from_sf = |sf: &SerializedFile| -> Option<Vec<u8>> {
+                let obj = sf.object_map.get(&path_id).map(|&idx| &sf.objects[idx])?;
+                let start_pos = obj.byte_start;
+                let end_pos = obj.byte_start + obj.byte_size;
+                let obj_data = &sf.data[start_pos..end_pos.min(sf.data.len())];
+                let width = tex.m_Width as usize;
+                let height = tex.m_Height as usize;
+                let format = tex.m_TextureFormat;
+                let expected = tex.m_CompleteImageSize as usize;
+                let is_crunch = matches!(format, 28 | 29 | 64 | 65);                
+                if is_crunch {
+                    for header_len in (90..150).step_by(2) {
+                        if header_len < obj_data.len() {
+                            let candidate = &obj_data[header_len..];
+                            if candidate.len() >= 4 {
+                                let is_ok = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                                    let mut decomp = vec![0u32; width * height];
+                                    texture2ddecoder::decode_unity_crunch(candidate, width, height, &mut decomp).is_ok()
+                                })).unwrap_or(false);
+                                if is_ok {
+                                    return Some(candidate.to_vec());
+                                }
+                            }
+                        }
+                    }
+                }                
+                if expected > 0 && end_pos <= sf.data.len() && end_pos >= expected {
+                    return Some(sf.data[end_pos - expected..end_pos].to_vec());
+                } else if start_pos + expected <= sf.data.len() {
+                    return Some(sf.data[start_pos..start_pos + expected].to_vec());
+                }
+                None
+            };
+            if let Some(file_name) = &src_file {
+                if let Some((_, sf)) = self.asset_manager.files.iter().find(|(k, _)| k.contains(file_name) || file_name.contains(*k)) {
+                    payload = try_extract_from_sf(sf);
+                }
+            }
+            if payload.is_none() {
+                for sf in self.asset_manager.files.values() {
+                    if let Some(p) = try_extract_from_sf(sf) {
+                        payload = Some(p);
+                        break;
                     }
                 }
             }
