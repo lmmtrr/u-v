@@ -1608,13 +1608,13 @@ export class SceneManager {
             );
             if (logicalParentPathId && logicalParentPathId !== path_idStr) {
               (t as any).originalLocalPosition = t.m_LocalPosition
-                ? { ...t.m_LocalPosition }
+                ? { ...(t.m_LocalPosition as Record<string, number>) }
                 : undefined;
               (t as any).originalLocalRotation = t.m_LocalRotation
-                ? { ...t.m_LocalRotation }
+                ? { ...(t.m_LocalRotation as Record<string, number>) }
                 : undefined;
               (t as any).originalLocalScale = t.m_LocalScale
-                ? { ...t.m_LocalScale }
+                ? { ...(t.m_LocalScale as Record<string, number>) }
                 : undefined;
               const oldWorldMatrix = getRelativeMatrix(
                 path_idStr,
