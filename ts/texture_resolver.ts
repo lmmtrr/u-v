@@ -5,6 +5,7 @@ import {
   getPointerPathId,
   type ExternalRefIndex,
 } from "./external_refs";
+import { getRawPathId } from "./id_space";
 export const isValidPathId = (id: string | number | null | undefined) =>
   id !== undefined && id !== null && String(id) !== "0";
 export function resolveRendererTextures(
@@ -35,7 +36,7 @@ export function resolveRendererTextures(
     const ownerFile = String(owner?.sourceFileName || "");
     const target = lookup.externalRefs?.resolve(
       ownerFile,
-      String(owner?.path_id || ""),
+      getRawPathId(owner),
       fileId,
     );
     if (target?.known) {
@@ -43,7 +44,14 @@ export function resolveRendererTextures(
         ? byFile?.get(target.fileName)?.get(pathId)
         : undefined;
       if (hit) return hit;
-      if (fileId !== 0) return null;
+      if (fileId !== 0) {
+        if (target.fileName || !byFile) return null;
+        for (const perFile of byFile.values()) {
+          const external = perFile.get(pathId);
+          if (external) return external;
+        }
+        return null;
+      }
     }
     return global.get(pathId) || null;
   };
