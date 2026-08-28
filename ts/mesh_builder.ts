@@ -12,6 +12,7 @@ import { MorphTarget } from "@babylonjs/core/Morph/morphTarget";
 import { createSkeletonForBones, findRoot } from "./bone_system";
 import { createMaterial, createMultiMaterial } from "./renderer_utils";
 import { computeCRC32, normalizeHash } from "./utils";
+import { isHumanoidAvatar } from "./humanoid_system";
 import { workerClient } from "./worker_client";
 import { state } from "./state";
 import type { MeshMeta, UnityObject, JSONValue, PathId } from "./types";
@@ -230,10 +231,11 @@ export async function instantiateMesh(
           animatorAvatar.path_id &&
           animatorAvatar.path_id !== "0"
         ) {
-          skeletonAvatar = state.avatarsByPathId?.get(
+          const candidate = state.avatarsByPathId?.get(
             String(animatorAvatar.path_id),
           ) || null;
-          if (skeletonAvatar) {
+          if (candidate && isHumanoidAvatar(candidate as never as UnityObject)) {
+            skeletonAvatar = candidate;
             skeletonHasOwnAvatar = true;
             break;
           }
@@ -270,10 +272,11 @@ export async function instantiateMesh(
             animatorAvatar.path_id &&
             animatorAvatar.path_id !== "0"
           ) {
-            skeletonAvatar = state.avatarsByPathId?.get(
+            const candidate = state.avatarsByPathId?.get(
               String(animatorAvatar.path_id),
             ) || null;
-            if (skeletonAvatar) {
+            if (candidate && isHumanoidAvatar(candidate as never as UnityObject)) {
+              skeletonAvatar = candidate;
               skeletonHasOwnAvatar = true;
               break;
             }
@@ -286,7 +289,12 @@ export async function instantiateMesh(
         state.avatarsByPathId &&
         state.avatarsByPathId.size > 0
       ) {
-        skeletonAvatar = state.avatarsByPathId.values().next().value || null;
+        for (const candidate of state.avatarsByPathId.values()) {
+          if (isHumanoidAvatar(candidate)) {
+            skeletonAvatar = candidate as never as Record<string, JSONValue>;
+            break;
+          }
+        }
       }
       (skeleton as { avatar?: Record<string, JSONValue> | null }).avatar = skeletonAvatar;
       (skeleton as { avatarIsGenuine?: boolean }).avatarIsGenuine = skeletonHasOwnAvatar;

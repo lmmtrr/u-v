@@ -504,3 +504,22 @@ export const applyHumanoidRotation = (
   const invPostQ = Quaternion.Inverse(postQ);
   node.rotationQuaternion.copyFrom(preQ.multiply(muscleRot).multiply(invPostQ));
 };
+export const isHumanoidAvatar = (
+  avatar: UnityObject | null | undefined,
+): boolean => {
+  if (!avatar) return false;
+  const humanoidBones = avatar.humanoidBones as
+    | Record<string, JSONValue>
+    | undefined;
+  if (humanoidBones && Object.keys(humanoidBones).length > 0) return true;
+  const avatarAsset = avatar.m_Avatar as Record<string, JSONValue> | undefined;
+  let human = (avatarAsset?.m_Human || avatar.m_Human) as
+    | Record<string, JSONValue>
+    | undefined;
+  if (human && human.data) human = human.data as Record<string, JSONValue>;
+  const humanBoneIndex = human?.m_HumanBoneIndex as number[] | undefined;
+  return (
+    Array.isArray(humanBoneIndex) &&
+    humanBoneIndex.some((index) => Number(index) >= 0)
+  );
+};

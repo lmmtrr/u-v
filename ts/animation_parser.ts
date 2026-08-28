@@ -1,6 +1,7 @@
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import { state } from "./state";
 import type { JSONValue, UnityObject } from "./types";
+import { isHumanoidAvatar } from "./humanoid_system";
 export class JSBinaryReader {
   private view: DataView;
   public pos: number;
@@ -266,7 +267,7 @@ export const resolveAvatarForAnimation = (
           const avatar = state.avatarsByPathId?.get(
             String((animator.m_Avatar as Record<string, JSONValue>).path_id),
           );
-          if (avatar) return avatar;
+          if (avatar && isHumanoidAvatar(avatar)) return avatar;
         }
         const transform = state.transformsByGameObjectId?.get(currentGoId);
         if (
@@ -289,7 +290,9 @@ export const resolveAvatarForAnimation = (
     }
   }
   if (state.avatarsByPathId && state.avatarsByPathId.size > 0) {
-    return state.avatarsByPathId.values().next().value || null;
+    for (const avatar of state.avatarsByPathId.values()) {
+      if (isHumanoidAvatar(avatar)) return avatar;
+    }
   }
   return defaultAvatar;
 };
