@@ -34,6 +34,7 @@ export interface MeshResponse {
 }
 export interface TextureMeta {
   path_id?: string | null;
+  raw_path_id?: string | null;
   m_Width?: number;
   m_Height?: number;
   image_data?: string | Uint8Array | null;
@@ -43,6 +44,7 @@ export interface TextureMeta {
 }
 export interface MeshMeta {
   path_id?: string | null;
+  raw_path_id?: string | null;
   m_VertexCount?: number;
   m_Vertices?: Float32Array | number[] | null;
   m_Normals?: Float32Array | number[] | null;
@@ -93,12 +95,18 @@ export interface GameObjectRef {
   path_id?: string | null;
   m_PathID?: string | null;
 }
+export interface AssetInfo {
+  assets: Record<string, string[]>;
+  object_assets: Record<string, string>;
+}
 export interface LoadedFile {
   fileIndex?: number;
   name?: string;
   objects: UnityObject[];
   removedFromUI?: boolean;
   hash?: Record<string, string>;
+  assetInfo?: AssetInfo | null;
+  idSuffix?: string;
   isExpanded?: boolean;
 }
 export interface AnimationClipItem {
@@ -150,6 +158,7 @@ export interface EnvironmentInterface {
     source_file: string,
   ): Uint32Array | undefined | null;
   getTextureData(path_id: PathId, source_file: string): Uint8Array | undefined | null;
+  getAssetInfo?(): string;
 }
 export interface StreamedCurveKeyType {
   index: number;

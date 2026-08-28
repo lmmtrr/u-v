@@ -39,6 +39,8 @@ import { processOrphanedMeshes } from "./orphan_resolver";
 import { resolveRendererTextures, isValidPathId } from "./texture_resolver";
 import { instantiateMesh, getRelativeMatrix } from "./mesh_builder";
 import { findRoot, computeGenericPartAttachments } from "./bone_system";
+import { buildExternalRefIndex, type ExternalRefIndex } from "./external_refs";
+import { normalizeLoadedFileIds, getRawPathId } from "./id_space";
 type Lookup = {
   gameObjects: Map<string, Record<string, JSONValue>>;
   transforms: Map<string, Record<string, JSONValue>>;
@@ -48,6 +50,10 @@ type Lookup = {
   materials: Map<string, Record<string, JSONValue>>;
   renderersByGo: Map<string, Record<string, JSONValue>>;
   filtersByGo: Map<string, Record<string, JSONValue>>;
+  texturesByFile: Map<string, Map<string, TextureMeta>>;
+  materialsByFile: Map<string, Map<string, Record<string, JSONValue>>>;
+  meshesByFile: Map<string, Map<string, MeshMeta[]>>;
+  externalRefs: ExternalRefIndex;
   animationClips: Array<{ name: string; clipData: Record<string, JSONValue> }>;
 };
 type RendererRecord = {
@@ -1153,6 +1159,7 @@ export class SceneManager {
     }
   }
   private aggregateObjectsAndHashes(): UnityObject[] {
+    normalizeLoadedFileIds(state.loadedFiles);
     const objects: UnityObject[] = [];
     state.loadedFiles.forEach((f) => {
       f.objects.forEach((obj) => {
@@ -1193,7 +1200,25 @@ export class SceneManager {
       materials: new Map<string, Record<string, JSONValue>>(),
       renderersByGo: new Map<string, Record<string, JSONValue>>(),
       filtersByGo: new Map<string, Record<string, JSONValue>>(),
+      texturesByFile: new Map<string, Map<string, TextureMeta>>(),
+      materialsByFile: new Map<string, Map<string, Record<string, JSONValue>>>(),
+      meshesByFile: new Map<string, Map<string, MeshMeta[]>>(),
+      externalRefs: buildExternalRefIndex(state.loadedFiles),
       animationClips: [],
+    };
+    const indexByFile = <T>(
+      byFile: Map<string, Map<string, T>>,
+      fileName: string,
+      pathId: string,
+      value: T,
+    ) => {
+      if (!fileName || !pathId) return;
+      let perFile = byFile.get(fileName);
+      if (!perFile) {
+        perFile = new Map<string, T>();
+        byFile.set(fileName, perFile);
+      }
+      perFile.set(pathId, value);
     };
     objects.forEach((obj) => {
       if (!obj) return;
@@ -1227,11 +1252,29 @@ export class SceneManager {
             if (!lookup.meshes.has(dataPathIdStr))
               lookup.meshes.set(dataPathIdStr, []);
             lookup.meshes.get(dataPathIdStr)!.push(data as never as MeshMeta);
+            const meshFile = String(data.sourceFileName || "");
+            const meshRawId = getRawPathId(data);
+            if (meshFile && meshRawId) {
+              let perFile = lookup.meshesByFile.get(meshFile);
+              if (!perFile) {
+                perFile = new Map<string, MeshMeta[]>();
+                lookup.meshesByFile.set(meshFile, perFile);
+              }
+              if (!perFile.has(meshRawId)) perFile.set(meshRawId, []);
+              perFile.get(meshRawId)!.push(data as never as MeshMeta);
+            }
           }
           break;
         case "Texture2D":
-          if (data)
+          if (data) {
             lookup.textures.set(dataPathIdStr, data as never as TextureMeta);
+            indexByFile(
+              lookup.texturesByFile,
+              String(data.sourceFileName || ""),
+              getRawPathId(data),
+              data as never as TextureMeta,
+            );
+          }
           break;
         case "SkinnedMeshRenderer":
         case "MeshRenderer":
@@ -1317,7 +1360,15 @@ export class SceneManager {
             );
           break;
         case "Material":
-          if (data) lookup.materials.set(dataPathIdStr, data);
+          if (data) {
+            lookup.materials.set(dataPathIdStr, data);
+            indexByFile(
+              lookup.materialsByFile,
+              String(data.sourceFileName || ""),
+              getRawPathId(data),
+              data,
+            );
+          }
           break;
       }
     });
@@ -1705,18 +1756,25 @@ export class SceneManager {
     >;
   } {
     const getRendererTextureScore = (renderer: RendererRecord) => {
-      const resolvedTextureCount = (renderer.textures || []).filter((t) => {
+      const validTextures = (renderer.textures || []).filter((t) => {
         if (!t) return false;
         const texObj = t as Record<string, JSONValue>;
         const id = texObj.texture
           ? String((texObj.texture as Record<string, JSONValue>).path_id || "")
           : String(texObj.path_id || "");
         return isValidPathId(id);
-      }).length;
+      }) as Array<Record<string, JSONValue>>;
+      const guessedTextureCount = validTextures.filter(
+        (t) => t.isFallback === true,
+      ).length;
+      const resolvedTextureCount = validTextures.length - guessedTextureCount;
       const legacyTextureCount = (renderer.texture_path_ids || []).filter(
         (id: unknown) => isValidPathId(id as string),
       ).length;
-      return Math.max(resolvedTextureCount, legacyTextureCount);
+      return (
+        Math.max(resolvedTextureCount, legacyTextureCount) * 1000 +
+        guessedTextureCount
+      );
     };
     const bestRendererByMeshName = new Map<
       string,

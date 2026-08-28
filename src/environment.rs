@@ -33,6 +33,11 @@ fn simplify_name_rust(name: &str) -> String {
     let basename = name.rsplit('/').next().unwrap_or(&name);
     basename.to_lowercase()
 }
+#[derive(Serialize)]
+pub struct AssetInfo {
+    pub assets: HashMap<String, Vec<String>>,
+    pub object_assets: HashMap<String, String>,
+}
 #[wasm_bindgen]
 pub struct Environment {
     pub(crate) objects: Vec<ClassType>,
@@ -382,8 +387,9 @@ fn process_skinned_mesh_renderer(val: &UnityValue, path_id: i64) -> serde_json::
     if let serde_json::Value::Object(ref mut map) = json {
         map.insert("path_id".to_string(), serde_json::Value::String(path_id.to_string()));
         if let Some(mesh_ptr) = val.get("m_Mesh") {
-            if let UnityValue::PPtr { path_id: m_path_id, .. } = mesh_ptr {
+            if let UnityValue::PPtr { file_id: m_file_id, path_id: m_path_id } = mesh_ptr {
                 map.insert("mesh_path_id".to_string(), serde_json::Value::String(m_path_id.to_string()));
+                map.insert("mesh_file_id".to_string(), serde_json::Value::Number(serde_json::Number::from(*m_file_id)));
             }
         }
         if let Some(bones_val) = val.get("m_Bones") {
@@ -395,7 +401,15 @@ fn process_skinned_mesh_renderer(val: &UnityValue, path_id: i64) -> serde_json::
                         None
                     }
                 }).collect();
+                let bone_file_ids: Vec<serde_json::Value> = bones_arr.iter().filter_map(|b| {
+                    if let UnityValue::PPtr { file_id: b_file_id, .. } = b {
+                        Some(serde_json::Value::Number(serde_json::Number::from(*b_file_id)))
+                    } else {
+                        None
+                    }
+                }).collect();
                 map.insert("bone_path_ids".to_string(), serde_json::Value::Array(bone_ids));
+                map.insert("bone_file_ids".to_string(), serde_json::Value::Array(bone_file_ids));
             }
         }
     }
@@ -885,8 +899,9 @@ impl Environment {
                                     if let serde_json::Value::Object(ref mut map) = json {
                                         map.insert("path_id".to_string(), serde_json::Value::String(path_id.to_string()));
                                         if let Some(mesh_ptr) = unity_value.get("m_Mesh") {
-                                            if let UnityValue::PPtr { path_id: m_path_id, .. } = mesh_ptr {
+                                            if let UnityValue::PPtr { file_id: m_file_id, path_id: m_path_id } = mesh_ptr {
                                                 map.insert("mesh_path_id".to_string(), serde_json::Value::String(m_path_id.to_string()));
+                                                map.insert("mesh_file_id".to_string(), serde_json::Value::Number(serde_json::Number::from(*m_file_id)));
                                             }
                                         }
                                     }
@@ -1049,6 +1064,27 @@ impl Environment {
     #[wasm_bindgen]
     pub fn getObjectHash(&self) -> String {
         serde_json::to_string(&self.object_hash).unwrap_or_else(|_| "{}".to_string())
+    }
+    #[wasm_bindgen]
+    pub fn getAssetInfo(&self) -> String {
+        let mut assets: HashMap<String, Vec<String>> = HashMap::new();
+        let mut object_assets: HashMap<String, String> = HashMap::new();
+        for (asset_name, sf) in self.asset_manager.files.iter() {
+            let externals: Vec<String> = sf
+                .externals
+                .iter()
+                .map(|ext| {
+                    let path = ext.path_name.replace('\\', "/");
+                    path.rsplit('/').next().unwrap_or(&path).to_string()
+                })
+                .collect();
+            assets.insert(asset_name.clone(), externals);
+            for obj in sf.objects.iter() {
+                object_assets.insert(obj.path_id.to_string(), asset_name.clone());
+            }
+        }
+        let info = AssetInfo { assets, object_assets };
+        serde_json::to_string(&info).unwrap_or_else(|_| "{}".to_string())
     }
     pub(crate) fn read_object(&self, path_id: i64, source_file: Option<String>, expected_class_id: Option<i32>) -> Option<UnityValue> {
         let simplified_source = source_file.as_ref().map(|s| simplify_name_rust(s));

@@ -37,6 +37,12 @@ self.onmessage = async (event: MessageEvent) => {
         const env = new Environment(src);
         const objects = JSON.parse(env.getObjects()) as never as JSONValue[];
         const hash = JSON.parse(env.getObjectHash()) as never as Record<string, string>;
+        let assetInfo: JSONValue = null;
+        try {
+          assetInfo = JSON.parse(env.getAssetInfo()) as never as JSONValue;
+        } catch {
+          assetInfo = null;
+        }
         environments.push({ name, env });
         const fileIndex = environments.length - 1;
         ctx.postMessage({
@@ -47,6 +53,7 @@ self.onmessage = async (event: MessageEvent) => {
             name,
             objects,
             hash,
+            assetInfo,
           } as never as JSONValue,
         });
         break;

@@ -1,7 +1,7 @@
 import { workerClient } from "./worker_client";
 import { updateProgress, hideProgress } from "./progress";
 import { showNotification, showSplash } from "./ui";
-import type { LoadedFile, ViewerState, UnityObject } from "./types";
+import type { AssetInfo, LoadedFile, ViewerState, UnityObject } from "./types";
 const readFileAsArrayBuffer = (
   file: File,
   onProgress?: (percent: number) => void,
@@ -55,8 +55,9 @@ export const loadFiles = async (
         name: string;
         objects: UnityObject[];
         hash: Record<string, string> | Map<string, string>;
+        assetInfo?: AssetInfo | null;
       } = await workerClient.loadFile(arrayBuf, file.name);
-      const { fileIndex, name, objects, hash } = result;
+      const { fileIndex, name, objects, hash, assetInfo } = result;
       if (!objects || objects.length === 0) {
         showNotification(
           `${file.name} may not be a Unity file or may be encrypted.`,
@@ -69,6 +70,7 @@ export const loadFiles = async (
         name,
         objects,
         hash,
+        assetInfo,
         fileIndex,
         isExpanded: true,
       } as LoadedFile);

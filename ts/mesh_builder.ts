@@ -156,7 +156,7 @@ export async function instantiateMesh(
       (f) => f.name === mesh_data.sourceFileName,
     );
     if (file && file.fileIndex !== undefined) {
-      const pathId = mesh_data.path_id || "";
+      const pathId = mesh_data.raw_path_id || mesh_data.path_id || "";
       const matrixArray = hasSkin ? meshMatrix.toArray() : null;
       const normalMatrixArray =
         hasSkin && normalMatrix ? normalMatrix.toArray() : null;

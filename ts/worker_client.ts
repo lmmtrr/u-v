@@ -1,9 +1,15 @@
-import type { MeshRequest, MeshResponse, PathId, JSONValue, UnityObject } from "./types";
+import type { MeshRequest, MeshResponse, PathId, JSONValue, UnityObject, AssetInfo } from "./types";
 type WorkerResponsePayload =
   | void
   | MeshResponse
   | { raw: Uint8Array | null }
-  | { fileIndex: number; name: string; objects: UnityObject[]; hash: Record<string, string> };
+  | {
+      fileIndex: number;
+      name: string;
+      objects: UnityObject[];
+      hash: Record<string, string>;
+      assetInfo: AssetInfo | null;
+    };
 class WorkerClient {
   private worker: Worker;
   private pendingRequests: Map<
@@ -62,12 +68,14 @@ class WorkerClient {
      name: string;
      objects: UnityObject[];
      hash: Record<string, string>;
+     assetInfo: AssetInfo | null;
    }> {
      return this.request<{
        fileIndex: number;
        name: string;
        objects: UnityObject[];
        hash: Record<string, string>;
+       assetInfo: AssetInfo | null;
      }>("LOAD_FILE", { arrayBuffer, name } as never as JSONValue, [arrayBuffer]);
    }
   async getMeshData(

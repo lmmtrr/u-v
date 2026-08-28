@@ -1,5 +1,10 @@
 import type { TextureMeta, MeshMeta, UnityObject, JSONValue } from "./types";
-import { pickBestMeshForRenderer } from "./renderer_utils";
+import { pickBestMesh } from "./renderer_utils";
+import {
+  getPointerFileId,
+  getPointerPathId,
+  type ExternalRefIndex,
+} from "./external_refs";
 export const isValidPathId = (id: string | number | null | undefined) =>
   id !== undefined && id !== null && String(id) !== "0";
 export function resolveRendererTextures(
@@ -12,23 +17,64 @@ export function resolveRendererTextures(
     materials: Map<string, UnityObject>;
     renderersByGo: Map<string, UnityObject>;
     filtersByGo: Map<string, UnityObject>;
+    texturesByFile?: Map<string, Map<string, TextureMeta>>;
+    materialsByFile?: Map<string, Map<string, UnityObject>>;
+    meshesByFile?: Map<string, Map<string, MeshMeta[]>>;
+    externalRefs?: ExternalRefIndex;
   },
 ) {
+  const resolveRef = <T>(
+    ptr: Record<string, JSONValue> | undefined | null,
+    owner: Record<string, JSONValue> | undefined | null,
+    byFile: Map<string, Map<string, T>> | undefined,
+    global: Map<string, T>,
+  ): T | null => {
+    const pathId = getPointerPathId(ptr);
+    if (!isValidPathId(pathId)) return null;
+    const fileId = getPointerFileId(ptr);
+    const ownerFile = String(owner?.sourceFileName || "");
+    const target = lookup.externalRefs?.resolve(
+      ownerFile,
+      String(owner?.path_id || ""),
+      fileId,
+    );
+    if (target?.known) {
+      const hit = target.fileName
+        ? byFile?.get(target.fileName)?.get(pathId)
+        : undefined;
+      if (hit) return hit;
+      if (fileId !== 0) return null;
+    }
+    return global.get(pathId) || null;
+  };
   objects.forEach((obj) => {
     const renderer = (obj?.SkinnedMeshRenderer || obj?.MeshRenderer) as Record<string, JSONValue> | undefined;
     if (!renderer) return;
     const goIdStr = String((renderer.m_GameObject as Record<string, JSONValue> | undefined)?.path_id || "");
     const filter = lookup.filtersByGo.get(goIdStr);
-    const meshId =
-      String(renderer.mesh_path_id || "") ||
-      String((filter?.m_Mesh as Record<string, JSONValue> | undefined)?.path_id || "");
+    const filterMesh = filter?.m_Mesh as Record<string, JSONValue> | undefined;
+    const rendererMeshId = String(renderer.mesh_path_id || "");
+    const meshPtr: Record<string, JSONValue> = rendererMeshId
+      ? { path_id: rendererMeshId, file_id: Number(renderer.mesh_file_id ?? 0) }
+      : filterMesh || {};
+    const meshOwner = rendererMeshId ? renderer : filter || renderer;
     if (!renderer.mesh) {
-      renderer.mesh = pickBestMeshForRenderer(meshId, lookup.meshes as Map<string, MeshMeta[]>) as never as JSONValue;
+      const meshCandidates = resolveRef<MeshMeta[]>(
+        meshPtr,
+        meshOwner,
+        lookup.meshesByFile,
+        lookup.meshes as Map<string, MeshMeta[]>,
+      );
+      renderer.mesh = pickBestMesh(meshCandidates) as never as JSONValue;
     }
     const rendererMaterials = (renderer.m_Materials || []) as Array<Record<string, JSONValue>>;
     renderer.textures = rendererMaterials.map((matPtr) => {
-      const matIdStr = String(matPtr.path_id || matPtr.m_PathID || "");
-      const material = lookup.materials.get(matIdStr);
+      const material = resolveRef<UnityObject>(
+        matPtr,
+        renderer,
+        lookup.materialsByFile,
+        lookup.materials,
+      );
       if (material) {
         let texEnvs: Record<string, JSONValue> | Array<Record<string, JSONValue>> | null =
           (material.m_SavedProperties as Record<string, JSONValue> | undefined)?.m_TexEnvs as Record<string, JSONValue> | Array<Record<string, JSONValue>> | null || null;
@@ -93,8 +139,12 @@ export function resolveRendererTextures(
         }
         if (bestTexEnv) {
           const texTexture = bestTexEnv.m_Texture as Record<string, JSONValue> | undefined;
-          const texIdStr = String(texTexture?.path_id || texTexture?.m_PathID || "");
-          const tex = lookup.textures.get(texIdStr);
+          const tex = resolveRef<TextureMeta>(
+            texTexture,
+            material,
+            lookup.texturesByFile,
+            lookup.textures,
+          );
           if (tex) {
             return {
               texture: tex,
@@ -114,9 +164,12 @@ export function resolveRendererTextures(
     ) {
       renderer.textures = texturePathIds.map((texId) => {
         const texIdStr = String(texId);
-        const tex = isValidPathId(texIdStr)
-          ? lookup.textures.get(texIdStr) || null
-          : null;
+        const tex = resolveRef<TextureMeta>(
+          { path_id: texIdStr },
+          renderer,
+          lookup.texturesByFile,
+          lookup.textures,
+        );
         return tex
           ? {
               texture: tex,
@@ -157,6 +210,11 @@ export function resolveRendererTextures(
       })();
       let bestTex: TextureMeta | null = null;
       let maxScore = 0;
+      const rendererFile = String(renderer.sourceFileName || "");
+      const preferOnTie = (candidate: TextureMeta) => {
+        if (!bestTex) return true;
+        return String(candidate.path_id) < String(bestTex.path_id);
+      };
       lookup.textures.forEach((tex: TextureMeta) => {
         const texName = String(tex?.name || tex?.m_Name || "").toLowerCase();
         if (!texName || tex.path_id === undefined || tex.path_id === null) return;
@@ -199,7 +257,10 @@ export function resolveRendererTextures(
                 break;
               }
             }
-            if (score > maxScore) {
+            if (rendererFile && String(tex.sourceFileName || "") === rendererFile) {
+              score += 10;
+            }
+            if (score > maxScore || (score === maxScore && preferOnTie(tex))) {
               maxScore = score;
               bestTex = tex;
             }
@@ -212,6 +273,7 @@ export function resolveRendererTextures(
             texture: bestTex,
             scale: { x: 1.0, y: 1.0 },
             offset: { x: 0.0, y: 0.0 },
+            isFallback: true,
           },
         ] as never as JSONValue;
       }

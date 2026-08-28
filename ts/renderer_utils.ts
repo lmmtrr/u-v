@@ -44,7 +44,7 @@ export const toRGBABytes = async (
       (f) => f.name === texData.sourceFileName,
     );
     if (file && file.fileIndex !== undefined) {
-      const pathId: PathId = texData.path_id || "";
+      const pathId: PathId = texData.raw_path_id || texData.path_id || "";
         const result = await workerClient.getTextureData(
           file.fileIndex,
           pathId,
@@ -93,9 +93,11 @@ export const toRGBABytes = async (
 export const pickBestMeshForRenderer = (
   meshPathId: string,
   meshesByPathId: Map<string, MeshMeta[]>,
+): MeshMeta | null =>
+  pickBestMesh(meshesByPathId.get(String(meshPathId)) || null);
+export const pickBestMesh = (
+  candidates: MeshMeta[] | null | undefined,
 ): MeshMeta | null => {
-  const meshPathIdStr = String(meshPathId);
-  const candidates = meshesByPathId.get(meshPathIdStr);
   if (!candidates || candidates.length === 0) return null;
   const scored = candidates.map((mesh) => {
     const vertexCount = mesh?.m_VertexCount || 0;
