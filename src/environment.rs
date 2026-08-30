@@ -23,6 +23,7 @@ pub enum ClassType {
     SpringBone(serde_json::Value),
     DynamicBone(serde_json::Value),
     AssetBundle(serde_json::Value),
+    LODGroup(serde_json::Value),
     Unknown {
         path_id: i64,
         class_id: i32,
@@ -907,6 +908,13 @@ impl Environment {
                                     }
                                     objects.push(ClassType::MeshFilter(json));
                                 }
+                                205 => {
+                                    let mut json = unity_value_to_json(&unity_value);
+                                    if let serde_json::Value::Object(ref mut map) = json {
+                                        map.insert("path_id".to_string(), serde_json::Value::String(path_id.to_string()));
+                                    }
+                                    objects.push(ClassType::LODGroup(json));
+                                }
                                 23 => {
                                     let mut json = unity_value_to_json(&unity_value);
                                     if let serde_json::Value::Object(ref mut map) = json {
@@ -1028,6 +1036,7 @@ impl Environment {
                     ClassType::SpringBone(val) => parse_path_id(val),
                     ClassType::DynamicBone(val) => parse_path_id(val),
                     ClassType::AssetBundle(val) => parse_path_id(val),
+                    ClassType::LODGroup(val) => parse_path_id(val),
                     ClassType::Unknown { path_id, .. } => *path_id,
                 };
                 if path_id != 0 {

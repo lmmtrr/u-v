@@ -32,6 +32,20 @@ export const rgbaToDataURL = (
   ctx.putImageData(imgData, 0, 0);
   return canvas.toDataURL("image/png");
 };
+const ALPHA_OPAQUE_THRESHOLD = 250;
+const ALPHA_PIXEL_RATIO = 0.005;
+export const hasMeaningfulAlpha = (rgbaBytes: Uint8Array): boolean => {
+  const pixels = rgbaBytes.length >> 2;
+  if (pixels === 0) return false;
+  const needed = Math.max(1, Math.ceil(pixels * ALPHA_PIXEL_RATIO));
+  let translucent = 0;
+  for (let i = 3; i < rgbaBytes.length; i += 4) {
+    if (rgbaBytes[i] < ALPHA_OPAQUE_THRESHOLD && ++translucent >= needed) {
+      return true;
+    }
+  }
+  return false;
+};
 export const toRGBABytes = async (
   texData: TextureMeta | null | undefined,
 ): Promise<Uint8Array | null> => {
@@ -52,15 +66,7 @@ export const toRGBABytes = async (
         );
       if (result && result.raw) {
         const raw = result.raw;
-        const texName = (texData.name || texData.m_Name || "").toLowerCase();
-        const needsAlpha =
-          texName.includes("eye") ||
-          texName.includes("iris") ||
-          texName.includes("hi") ||
-          texName.includes("overlay") ||
-          texName.includes("mouth") ||
-          texName.includes("brow");
-        if (!needsAlpha) {
+        if (!hasMeaningfulAlpha(raw)) {
           for (let i = 3; i < raw.length; i += 4) {
             raw[i] = 255;
           }
@@ -138,15 +144,7 @@ const resolveTexture = async (
           Texture.BILINEAR_SAMPLINGMODE,
         );
         texture.name = originalName || "Texture";
-        const texName = originalName.toLowerCase();
-        if (
-          texName.includes("eye") ||
-          texName.includes("iris") ||
-          texName.includes("hi") ||
-          texName.includes("overlay") ||
-          texName.includes("mouth") ||
-          texName.includes("brow")
-        ) {
+        if (hasMeaningfulAlpha(rgbaBytes)) {
           texture.hasAlpha = true;
         }
         if (textureCache) textureCache.set(texKeyStr, texture);
@@ -176,6 +174,7 @@ export const createMaterial = async (
   }
   const mat = new StandardMaterial("mat_" + textureIdsKey, scene);
   mat.specularColor = new Color3(0, 0, 0);
+  mat.specularPower = 0;
   mat.backFaceCulling = false;
   mat.twoSidedLighting = true;
   mat.emissiveColor = new Color3(0.1, 0.1, 0.1);
@@ -226,6 +225,7 @@ export const createMultiMaterial = async (
   for (let si = 0; si < subMeshes.length; si++) {
     const subMat = new StandardMaterial(`mat_${si}`, scene);
     subMat.specularColor = new Color3(0, 0, 0);
+    subMat.specularPower = 0;
     subMat.backFaceCulling = false;
     subMat.twoSidedLighting = true;
     subMat.emissiveColor = new Color3(0.1, 0.1, 0.1);

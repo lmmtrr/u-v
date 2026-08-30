@@ -8,6 +8,8 @@ import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { MultiMaterial } from "@babylonjs/core/Materials/multiMaterial";
 import { Skeleton } from "@babylonjs/core/Bones/skeleton";
 import { SubMesh } from "@babylonjs/core/Meshes/subMesh";
+import { VertexBuffer } from "@babylonjs/core/Buffers/buffer";
+import type { IndicesArray } from "@babylonjs/core/types";
 import { Animation } from "@babylonjs/core/Animations/animation";
 import { AnimationGroup } from "@babylonjs/core/Animations/animationGroup";
 import { GLTF2Export } from "@babylonjs/serializers/glTF/2.0/glTFSerializer";
@@ -41,6 +43,7 @@ import { instantiateMesh, getRelativeMatrix } from "./mesh_builder";
 import { findRoot, computeGenericPartAttachments } from "./bone_system";
 import { buildExternalRefIndex, type ExternalRefIndex } from "./external_refs";
 import { normalizeLoadedFileIds, getRawPathId } from "./id_space";
+const EXPORT_EMISSIVE = 0;
 type Lookup = {
   gameObjects: Map<string, Record<string, JSONValue>>;
   transforms: Map<string, Record<string, JSONValue>>;
@@ -606,6 +609,8 @@ export class SceneManager {
     this.cleanUpSceneResources();
     const objects = this.aggregateObjectsAndHashes();
     const lookup = this.classifyObjects(objects);
+    this.applyGameObjectActiveState(objects, lookup);
+    this.applyLODGroups(objects);
     const meshSourceFiles = new Set<string>();
     state.loadedFiles.forEach((f) => {
       const hasMesh = f.objects.some((obj) => {
@@ -831,6 +836,7 @@ export class SceneManager {
     let wasSkeletonVisible = false;
     let originalTime = 0;
     let originalPlaying = false;
+    const exportRestores: Array<() => void> = [];
     try {
       updateProgress(0, "Preparing GLB export...");
       wasSkeletonVisible = state.showSkeletons;
@@ -853,6 +859,43 @@ export class SceneManager {
         const frameRate = animData.frameRate || 24;
         const maxFrame = animData.maxFrame || 1;
         const TO_RAD = Math.PI / 180;
+        const attachments = state.genericPartAttachments || [];
+        const attachmentNodes = new Set<TransformNode>(
+          attachments.map((a) => a.partNode),
+        );
+        const attachMat1 = new Matrix();
+        const attachMat2 = new Matrix();
+        const attachMat3 = new Matrix();
+        const attachScale = new Vector3();
+        const attachRot = new Quaternion();
+        const attachPos = new Vector3();
+        const preparedSkeletons = new Set<Skeleton>();
+        const applyAttachments = () => {
+          if (attachments.length === 0) return;
+          preparedSkeletons.clear();
+          attachments.forEach(
+            ({ partNode, humanBone, partBindAbsolute, humanBoneBindAbsolute }) => {
+              const humanSkeleton = humanBone.getSkeleton();
+              if (!preparedSkeletons.has(humanSkeleton)) {
+                humanSkeleton.prepare(true);
+                preparedSkeletons.add(humanSkeleton);
+              }
+              humanBoneBindAbsolute.invertToRef(attachMat1);
+              partBindAbsolute.multiplyToRef(attachMat1, attachMat2);
+              attachMat2.multiplyToRef(
+                humanBone.getAbsoluteMatrix(),
+                attachMat3,
+              );
+              attachMat3.decompose(attachScale, attachRot, attachPos);
+              partNode.position.copyFrom(attachPos);
+              if (!partNode.rotationQuaternion) {
+                partNode.rotationQuaternion = attachRot.clone();
+              } else {
+                partNode.rotationQuaternion.copyFrom(attachRot);
+              }
+            },
+          );
+        };
         const evaluateFrame = (frame: number) => {
           animData.bones.forEach((boneData, bone) => {
             const node =
@@ -958,6 +1001,7 @@ export class SceneManager {
               );
             }
           });
+          applyAttachments();
         };
         const animatedNodes = new Set<TransformNode>();
         animData.bones.forEach((_, bone) => {
@@ -974,6 +1018,7 @@ export class SceneManager {
               : (bone as TransformNode);
           if (node) animatedNodes.add(node as TransformNode);
         });
+        attachmentNodes.forEach((node) => animatedNodes.add(node));
         const nodeKeys = new Map<
           TransformNode,
           {
@@ -989,8 +1034,8 @@ export class SceneManager {
           evaluateFrame(f);
           animatedNodes.forEach((node) => {
             const keys = nodeKeys.get(node)!;
-            let hasPos = false;
-            let hasRot = false;
+            let hasPos = attachmentNodes.has(node);
+            let hasRot = attachmentNodes.has(node);
             let hasScale = false;
             animData.bones.forEach((boneData, bone) => {
               const bNode =
@@ -1098,15 +1143,21 @@ export class SceneManager {
         });
       }
       updateProgress(45, "Preparing scene serialization...");
+      this.prepareMaterialsForExport(exportRestores);
+      this.prepareMeshDataForExport(exportRestores);
+      this.consolidateSubMeshesForExport(exportRestores);
       updateProgress(70, "Serializing scene meshes...");
       const glbData = await GLTF2Export.GLBAsync(this.scene, exportName, {
+        exportUnusedUVs: true,
         shouldExportNode: (node) => {
           const className = node.getClassName ? node.getClassName() : "";
+          const isMeshNode = className.includes("Mesh");
           if (
             node.name.includes("dummy") ||
             node.name.includes("SkeletonViewer") ||
+            className.includes("Camera") ||
             className.includes("Light") ||
-            node.name.toLowerCase().includes("light") ||
+            (!isMeshNode && node.name.toLowerCase().includes("light")) ||
             (node.name === "sceneRoot" && node.getChildren().length === 0)
           ) {
             return false;
@@ -1155,8 +1206,157 @@ export class SceneManager {
     } catch (error: any) {
       showNotification(`GLB Export failed: ${error.message || error}`, "error");
     } finally {
+      exportRestores.forEach((restore) => {
+        try {
+          restore();
+        } catch {}
+      });
+      exportRestores.length = 0;
       hideProgress();
     }
+  }
+  private prepareMaterialsForExport(restores: Array<() => void>): void {
+    const exact = this.scene.getEngine().useExactSrgbConversions;
+    const linear = new Color3();
+    this.scene.materials.forEach((material) => {
+      if (material.getClassName() !== "StandardMaterial") return;
+      const standard = material as unknown as {
+        diffuseColor: Color3;
+        emissiveColor: Color3;
+      };
+      const original = standard.diffuseColor;
+      if (!original) return;
+      original.toLinearSpaceToRef(linear, exact);
+      const boosted = new Color3(
+        Math.min(1, linear.r),
+        Math.min(1, linear.g),
+        Math.min(1, linear.b),
+      ).toGammaSpace(exact);
+      standard.diffuseColor = boosted;
+      const originalEmissive = standard.emissiveColor;
+      standard.emissiveColor = new Color3(
+        EXPORT_EMISSIVE,
+        EXPORT_EMISSIVE,
+        EXPORT_EMISSIVE,
+      );
+      restores.push(() => {
+        standard.diffuseColor = original;
+        standard.emissiveColor = originalEmissive;
+      });
+    });
+  }
+  private prepareMeshDataForExport(restores: Array<() => void>): void {
+    const engine = this.scene.getEngine();
+    const seen = new Set<unknown>();
+    this.scene.meshes.forEach((node) => {
+      const mesh = node as Mesh;
+      if (!mesh.geometry || seen.has(mesh.geometry)) return;
+      seen.add(mesh.geometry);
+      const indices = mesh.getIndices();
+      const totalVertices = mesh.getTotalVertices();
+      if (
+        indices &&
+        (indices as Uint32Array).BYTES_PER_ELEMENT === 4 &&
+        totalVertices <= 65536
+      ) {
+        let maxIndex = 0;
+        for (let i = 0; i < indices.length; i++) {
+          if (indices[i] > maxIndex) maxIndex = indices[i];
+        }
+        if (maxIndex <= 65535) {
+          const geometry = mesh.geometry as unknown as {
+            _indices: IndicesArray;
+          };
+          const original = geometry._indices;
+          geometry._indices = new Uint16Array(indices);
+          restores.push(() => {
+            geometry._indices = original;
+          });
+        }
+      }
+      [
+        VertexBuffer.MatricesIndicesKind,
+        VertexBuffer.MatricesIndicesExtraKind,
+      ].forEach((kind) => {
+        const original = mesh.geometry?.getVertexBuffer(kind);
+        if (!original || original.type !== VertexBuffer.FLOAT) return;
+        const floats = original.getFloatData(totalVertices);
+        if (!floats) return;
+        const packed = new Uint16Array(floats.length);
+        for (let i = 0; i < floats.length; i++) {
+          packed[i] = floats[i];
+        }
+        const replacement = new VertexBuffer(engine, packed, kind, {
+          updatable: false,
+          stride: 4,
+          size: 4,
+          type: VertexBuffer.UNSIGNED_SHORT,
+          normalized: false,
+        });
+        mesh.setVerticesBuffer(replacement, false);
+        restores.push(() => {
+          mesh.setVerticesBuffer(original, false);
+          replacement.dispose();
+        });
+      });
+    });
+  }
+  private consolidateSubMeshesForExport(restores: Array<() => void>): void {
+    this.scene.meshes.forEach((node) => {
+      const mesh = node as Mesh;
+      const subMeshes = mesh.subMeshes;
+      if (!subMeshes || subMeshes.length < 2) return;
+      const indices = mesh.getIndices();
+      if (!indices) return;
+      const totalVertices = mesh.getTotalVertices();
+      const ordered = [...subMeshes].sort((a, b) => a.indexStart - b.indexStart);
+      const runs: Array<{
+        materialIndex: number;
+        start: number;
+        count: number;
+      }> = [];
+      ordered.forEach((sub) => {
+        const last = runs[runs.length - 1];
+        if (
+          last &&
+          last.materialIndex === sub.materialIndex &&
+          last.start + last.count === sub.indexStart
+        ) {
+          last.count += sub.indexCount;
+        } else {
+          runs.push({
+            materialIndex: sub.materialIndex,
+            start: sub.indexStart,
+            count: sub.indexCount,
+          });
+        }
+      });
+      restores.push(() => {
+        mesh.subMeshes = subMeshes;
+      });
+      mesh.subMeshes = [];
+      runs.forEach((run) => {
+        let minVertex = totalVertices;
+        let maxVertex = -1;
+        for (let i = run.start; i < run.start + run.count; i++) {
+          const v = indices[i];
+          if (v < minVertex) minVertex = v;
+          if (v > maxVertex) maxVertex = v;
+        }
+        if (maxVertex < minVertex) {
+          minVertex = 0;
+          maxVertex = totalVertices - 1;
+        }
+        new SubMesh(
+          run.materialIndex,
+          minVertex,
+          maxVertex - minVertex + 1,
+          run.start,
+          run.count,
+          mesh,
+        );
+      });
+    });
   }
   private aggregateObjectsAndHashes(): UnityObject[] {
     normalizeLoadedFileIds(state.loadedFiles);
@@ -1189,6 +1389,85 @@ export class SceneManager {
     });
     state.allObjects = objects;
     return objects;
+  }
+  private applyLODGroups(objects: UnityObject[]): void {
+    const lod0 = new Set<string>();
+    const lowerLods = new Set<string>();
+    objects.forEach((obj) => {
+      const group = obj?.LODGroup as Record<string, JSONValue> | undefined;
+      if (!group || !Array.isArray(group.m_LODs)) return;
+      (group.m_LODs as JSONValue[]).forEach((levelValue, levelIndex) => {
+        const level = levelValue as Record<string, JSONValue> | null;
+        const renderers = level?.renderers;
+        if (!Array.isArray(renderers)) return;
+        (renderers as JSONValue[]).forEach((entryValue) => {
+          const entry = entryValue as Record<string, JSONValue> | null;
+          const ref = entry?.renderer as Record<string, JSONValue> | undefined;
+          const refId = ref ? String(ref.path_id || ref.m_PathID || "") : "";
+          if (!refId || refId === "0") return;
+          if (levelIndex === 0) lod0.add(refId);
+          else lowerLods.add(refId);
+        });
+      });
+    });
+    if (lowerLods.size === 0) return;
+    objects.forEach((obj) => {
+      const renderer = (obj?.SkinnedMeshRenderer || obj?.MeshRenderer) as
+        | Record<string, JSONValue>
+        | undefined;
+      if (!renderer) return;
+      const rendererId = String(renderer.path_id || "");
+      if (!rendererId) return;
+      if (lowerLods.has(rendererId) && !lod0.has(rendererId)) {
+        renderer.m_Enabled = false;
+      }
+    });
+  }
+  private applyGameObjectActiveState(
+    objects: UnityObject[],
+    lookup: Lookup,
+  ): void {
+    const activeCache = new Map<string, boolean>();
+    const isGameObjectActive = (goIdStr: string): boolean => {
+      if (!goIdStr || goIdStr === "0") return true;
+      const cached = activeCache.get(goIdStr);
+      if (cached !== undefined) return cached;
+      activeCache.set(goIdStr, true);
+      const go = lookup.gameObjects.get(goIdStr);
+      const selfActive = !(go?.m_IsActive === false || go?.m_IsActive === 0);
+      let active = selfActive;
+      if (active) {
+        const transform = lookup.transformsByGo.get(goIdStr);
+        const father = transform?.m_Father as
+          | Record<string, JSONValue>
+          | undefined;
+        const fatherIdStr = father
+          ? String(father.path_id || father.m_PathID || "0")
+          : "0";
+        if (fatherIdStr && fatherIdStr !== "0") {
+          const fatherTransform = lookup.transforms.get(fatherIdStr);
+          const fatherGo = fatherTransform?.m_GameObject as
+            | Record<string, JSONValue>
+            | undefined;
+          const fatherGoIdStr = fatherGo ? String(fatherGo.path_id || "") : "";
+          if (fatherGoIdStr) active = isGameObjectActive(fatherGoIdStr);
+        }
+      }
+      activeCache.set(goIdStr, active);
+      return active;
+    };
+    objects.forEach((obj) => {
+      const renderer = (obj?.SkinnedMeshRenderer || obj?.MeshRenderer) as
+        | Record<string, JSONValue>
+        | undefined;
+      if (!renderer) return;
+      const go = renderer.m_GameObject as
+        | Record<string, JSONValue>
+        | undefined;
+      const goIdStr = go ? String(go.path_id || "") : "";
+      if (!goIdStr) return;
+      if (!isGameObjectActive(goIdStr)) renderer.m_Enabled = false;
+    });
   }
   private classifyObjects(objects: UnityObject[]): Lookup {
     const lookup: Lookup = {

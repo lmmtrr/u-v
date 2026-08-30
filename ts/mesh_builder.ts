@@ -206,6 +206,8 @@ export async function instantiateMesh(
     customMesh.dispose();
     return null;
   }
+  const vertexCount =
+    Math.floor(transformedPositions.length / 3) || (mesh_data.m_VertexCount ?? 0);
   if (hasSkin) {
     const skeletonData = createSkeletonForBones(
       bonePathIds,
@@ -352,19 +354,15 @@ export async function instantiateMesh(
             boneIndex: [number, number, number, number];
             weight: [number, number, number, number];
           }) => {
-            indices.push(
-              localToGlobal[skin.boneIndex[0]],
-              localToGlobal[skin.boneIndex[1]],
-              localToGlobal[skin.boneIndex[2]],
-              localToGlobal[skin.boneIndex[3]],
-            );
             const w = Array.from(skin.weight).map((v: number) => v / 255.0);
             const total = w.reduce((a: number, b: number) => a + b, 0);
-            weights.push(
-              ...(total > 0.001
-                ? w.map((v: number) => v / total)
-                : [1, 0, 0, 0]),
-            );
+            const normalized =
+              total > 0.001 ? w.map((v: number) => v / total) : [1, 0, 0, 0];
+            for (let b = 0; b < 4; b++) {
+              const boneIndex = localToGlobal[skin.boneIndex[b]] ?? 0;
+              indices.push(normalized[b] > 0 ? boneIndex : 0);
+            }
+            weights.push(...normalized);
           },
         );
         customMesh.setVerticesData(
@@ -405,7 +403,7 @@ export async function instantiateMesh(
   }> = [];
   if (mesh_data.m_SubMeshes && mesh_data.m_SubMeshes.length > 0) {
     if (mesh_data.m_Skin && mesh_data.m_Skin.length > 0 && activeSkeleton && activeLocalToGlobal && activeLocalToGlobal.length > 0) {
-      const vertexDominantBone = new Int32Array(mesh_data.m_VertexCount ?? 0);
+      const vertexDominantBone = new Int32Array(vertexCount);
       vertexDominantBone.fill(-1);
       mesh_data.m_Skin.forEach((skin, vi) => {
         if (vi < vertexDominantBone.length) {
@@ -569,7 +567,7 @@ export async function instantiateMesh(
       const subMesh = new SubMesh(
         def.materialIndex,
         0,
-        mesh_data.m_VertexCount ?? 0,
+        vertexCount,
         def.indexStart,
         def.indexCount,
         customMesh,
