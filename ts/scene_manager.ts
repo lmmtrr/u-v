@@ -4,6 +4,8 @@ import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import { Matrix, Vector3, Quaternion } from "@babylonjs/core/Maths/math.vector";
 import { SkeletonViewer } from "@babylonjs/core/Debug/skeletonViewer";
+import { Light } from "@babylonjs/core/Lights/light";
+import { Camera } from "@babylonjs/core/Cameras/camera";
 import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { MultiMaterial } from "@babylonjs/core/Materials/multiMaterial";
 import { Skeleton } from "@babylonjs/core/Bones/skeleton";
@@ -1153,14 +1155,11 @@ export class SceneManager {
       const glbData = await GLTF2Export.GLBAsync(this.scene, exportName, {
         exportUnusedUVs: true,
         shouldExportNode: (node) => {
-          const className = node.getClassName ? node.getClassName() : "";
-          const isMeshNode = className.includes("Mesh");
           if (
+            node instanceof Light ||
+            node instanceof Camera ||
             node.name.includes("dummy") ||
             node.name.includes("SkeletonViewer") ||
-            className.includes("Camera") ||
-            className.includes("Light") ||
-            (!isMeshNode && node.name.toLowerCase().includes("light")) ||
             (node.name === "sceneRoot" && node.getChildren().length === 0)
           ) {
             return false;
