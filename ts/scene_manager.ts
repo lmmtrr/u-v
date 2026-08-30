@@ -1184,10 +1184,6 @@ export class SceneManager {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        showNotification(
-          `Successfully exported as ${exportName}.glb`,
-          "success",
-        );
       } else {
         throw new Error("GLB serialization returned empty data.");
       }
