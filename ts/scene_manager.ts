@@ -1576,38 +1576,45 @@ export class SceneManager {
       activeCache.set(goIdStr, true);
       const go = lookup.gameObjects.get(goIdStr);
       const selfActive = !(go?.m_IsActive === false || go?.m_IsActive === 0);
-      let active = selfActive;
-      if (active) {
-        const transform = lookup.transformsByGo.get(goIdStr);
-        const father = transform?.m_Father as
+      const transform = lookup.transformsByGo.get(goIdStr);
+      const father = transform?.m_Father as
+        | Record<string, JSONValue>
+        | undefined;
+      const fatherIdStr = father
+        ? String(father.path_id || father.m_PathID || "0")
+        : "0";
+      let fatherGoIdStr = "";
+      if (fatherIdStr && fatherIdStr !== "0") {
+        const fatherTransform = lookup.transforms.get(fatherIdStr);
+        const fatherGo = fatherTransform?.m_GameObject as
           | Record<string, JSONValue>
           | undefined;
-        const fatherIdStr = father
-          ? String(father.path_id || father.m_PathID || "0")
-          : "0";
-        if (fatherIdStr && fatherIdStr !== "0") {
-          const fatherTransform = lookup.transforms.get(fatherIdStr);
-          const fatherGo = fatherTransform?.m_GameObject as
-            | Record<string, JSONValue>
-            | undefined;
-          const fatherGoIdStr = fatherGo ? String(fatherGo.path_id || "") : "";
-          if (fatherGoIdStr) active = isGameObjectActive(fatherGoIdStr);
-        }
+        fatherGoIdStr = fatherGo ? String(fatherGo.path_id || "") : "";
       }
+      let active = fatherGoIdStr ? selfActive : true;
+      if (active && fatherGoIdStr) active = isGameObjectActive(fatherGoIdStr);
       activeCache.set(goIdStr, active);
       return active;
     };
+    const toDisable: Record<string, JSONValue>[] = [];
+    let enabledCount = 0;
     objects.forEach((obj) => {
       const renderer = (obj?.SkinnedMeshRenderer || obj?.MeshRenderer) as
         | Record<string, JSONValue>
         | undefined;
       if (!renderer) return;
+      if (renderer.m_Enabled === false) return;
       const go = renderer.m_GameObject as
         | Record<string, JSONValue>
         | undefined;
       const goIdStr = go ? String(go.path_id || "") : "";
       if (!goIdStr) return;
-      if (!isGameObjectActive(goIdStr)) renderer.m_Enabled = false;
+      if (isGameObjectActive(goIdStr)) enabledCount++;
+      else toDisable.push(renderer);
+    });
+    if (enabledCount === 0) return;
+    toDisable.forEach((renderer) => {
+      renderer.m_Enabled = false;
     });
   }
   private classifyObjects(objects: UnityObject[]): Lookup {
