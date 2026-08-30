@@ -538,9 +538,14 @@ export async function instantiateMesh(
       }
     });
   }
-  const textures = (renderer.textures as Array<{ texture?: { path_id?: string }; path_id?: string } | null>) || [];
+  const textures = (renderer.textures as Array<{ texture?: { path_id?: string }; path_id?: string; transparent?: boolean | null } | null>) || [];
   const textureIdsKey = textures
-    .map((t) => (t ? (t.texture ? t.texture.path_id : t.path_id) : "0"))
+    .map((t) => {
+      if (!t) return "0";
+      const id = t.texture ? t.texture.path_id : t.path_id;
+      const alpha = t.transparent === true ? "1" : t.transparent === false ? "0" : "?";
+      return `${id}:${alpha}`;
+    })
     .join(",");
   if (subMeshDefinitions.length > 1) {
     if (textures.length > 0) {

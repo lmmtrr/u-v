@@ -8,6 +8,75 @@ import {
 import { getRawPathId } from "./id_space";
 export const isValidPathId = (id: string | number | null | undefined) =>
   id !== undefined && id !== null && String(id) !== "0";
+const UNITY_RENDER_QUEUE = {
+  Background: 1000,
+  Geometry: 2000,
+  AlphaTest: 2450,
+  GeometryLast: 2500,
+  Transparent: 3000,
+  Overlay: 4000,
+} as const;
+const UNITY_RENDER_QUEUE_FROM_SHADER = -1;
+const UNITY_BLEND_MODE_ZERO = 0;
+const UNITY_ZWRITE_OFF = 0;
+const TRANSPARENT_KEYWORDS = [
+  "_ALPHATEST_ON",
+  "_ALPHABLEND_ON",
+  "_ALPHAPREMULTIPLY_ON",
+  "_SURFACE_TYPE_TRANSPARENT",
+];
+const TRANSPARENT_RENDER_TYPES = [
+  "transparent",
+  "transparentcutout",
+  "fade",
+  "grasstransparentcutout",
+];
+const readPairs = (value: JSONValue | undefined): Record<string, JSONValue> => {
+  const out: Record<string, JSONValue> = {};
+  if (Array.isArray(value)) {
+    for (const entry of value as Array<Record<string, JSONValue>>) {
+      if (entry?.first !== undefined) out[String(entry.first)] = entry.second;
+    }
+  } else if (value && typeof value === "object") {
+    Object.assign(out, value as Record<string, JSONValue>);
+  }
+  return out;
+};
+export const isMaterialTransparent = (
+  material: UnityObject | null | undefined,
+): boolean | null => {
+  if (!material) return null;
+  const mat = material as unknown as Record<string, JSONValue>;
+  const renderType = String(
+    readPairs(mat.stringTagMap).RenderType || "",
+  ).toLowerCase();
+  const keywords = (mat.m_ValidKeywords as string[] | undefined) || [];
+  if (keywords.some((kw) => TRANSPARENT_KEYWORDS.includes(String(kw)))) {
+    return true;
+  }
+  if (TRANSPARENT_RENDER_TYPES.includes(renderType)) return true;
+  const queue = Number(
+    mat.m_CustomRenderQueue ?? UNITY_RENDER_QUEUE_FROM_SHADER,
+  );
+  const hasExplicitQueue =
+    Number.isFinite(queue) && queue !== UNITY_RENDER_QUEUE_FROM_SHADER;
+  if (hasExplicitQueue && queue >= UNITY_RENDER_QUEUE.AlphaTest) return true;
+  const floats = readPairs(
+    (mat.m_SavedProperties as Record<string, JSONValue> | undefined)?.m_Floats,
+  );
+  const dstBlend = floats._DstBlend;
+  const zWrite = floats._ZWrite;
+  if (
+    dstBlend !== undefined &&
+    Number(dstBlend) !== UNITY_BLEND_MODE_ZERO &&
+    Number(zWrite) === UNITY_ZWRITE_OFF
+  ) {
+    return true;
+  }
+  if (renderType === "opaque") return false;
+  if (hasExplicitQueue) return false;
+  return null;
+};
 export function resolveRendererTextures(
   objects: UnityObject[],
   lookup: {
@@ -158,6 +227,7 @@ export function resolveRendererTextures(
               texture: tex,
               scale: bestTexEnv.m_Scale || { x: 1.0, y: 1.0 },
               offset: bestTexEnv.m_Offset || { x: 0.0, y: 0.0 },
+              transparent: isMaterialTransparent(material),
             };
           }
         }

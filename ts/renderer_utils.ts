@@ -1,19 +1,19 @@
 import { Scene } from "@babylonjs/core/scene";
 import { Material } from "@babylonjs/core/Materials/material";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture";
-import { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { MultiMaterial } from "@babylonjs/core/Materials/multiMaterial";
 import { state } from "./state";
 import { workerClient } from "./worker_client";
-import type { TextureMeta, MeshMeta, PathId, MeshResponse, UnityObject } from "./types";
+import type { TextureMeta, MeshMeta, PathId, UnityObject } from "./types";
 type TextureInfo =
   | TextureMeta
   | {
       texture?: TextureMeta;
       scale?: { x: number; y: number };
       offset?: { x: number; y: number };
+      transparent?: boolean | null;
     }
   | null;
 type TextureSlot = TextureInfo;
@@ -48,6 +48,7 @@ export const hasMeaningfulAlpha = (rgbaBytes: Uint8Array): boolean => {
 };
 export const toRGBABytes = async (
   texData: TextureMeta | null | undefined,
+  allowAlpha?: boolean | null,
 ): Promise<Uint8Array | null> => {
   const width = texData?.m_Width || 0;
   const height = texData?.m_Height || 0;
@@ -66,7 +67,11 @@ export const toRGBABytes = async (
         );
       if (result && result.raw) {
         const raw = result.raw;
-        if (!hasMeaningfulAlpha(raw)) {
+        const keepAlpha =
+          allowAlpha === false
+            ? false
+            : allowAlpha === true || hasMeaningfulAlpha(raw);
+        if (!keepAlpha) {
           for (let i = 3; i < raw.length; i += 4) {
             raw[i] = 255;
           }
@@ -120,9 +125,11 @@ const resolveTexture = async (
   texData: TextureMeta | null | undefined,
   scene: Scene,
   textureCache?: Map<string, Texture>,
+  allowAlpha?: boolean | null,
 ): Promise<Texture | null> => {
   if (!texData) return null;
-  const texKeyStr = texData.path_id || "";
+  const alphaKey = allowAlpha === true ? "1" : allowAlpha === false ? "0" : "?";
+  const texKeyStr = `${texData.path_id || ""}|${alphaKey}`;
   if (textureCache && textureCache.has(texKeyStr)) {
     return textureCache.get(texKeyStr)!;
   }
@@ -130,7 +137,7 @@ const resolveTexture = async (
   const height = texData.m_Height || 0;
   const maxTexSize = scene?.getEngine()?.getCaps()?.maxTextureSize || 8192;
   if (width > 0 && width <= maxTexSize && height > 0 && height <= maxTexSize) {
-    const rgbaBytes = await toRGBABytes(texData);
+    const rgbaBytes = await toRGBABytes(texData, allowAlpha);
     if (rgbaBytes) {
       if (rgbaBytes.length === width * height * 4) {
         const originalName = texData?.name || texData?.m_Name || "";
@@ -144,7 +151,7 @@ const resolveTexture = async (
           Texture.BILINEAR_SAMPLINGMODE,
         );
         texture.name = originalName || "Texture";
-        if (hasMeaningfulAlpha(rgbaBytes)) {
+        if (allowAlpha !== false && hasMeaningfulAlpha(rgbaBytes)) {
           texture.hasAlpha = true;
         }
         if (textureCache) textureCache.set(texKeyStr, texture);
@@ -185,6 +192,7 @@ export const createMaterial = async (
     texData as TextureMeta | undefined,
     scene,
     textureCache,
+    texInfo && "transparent" in texInfo ? texInfo.transparent : null,
   );
   if (resolvedTexture) {
     let activeTexture = resolvedTexture;
@@ -237,6 +245,7 @@ export const createMultiMaterial = async (
       texData as TextureMeta | undefined,
       scene,
       textureCache,
+      texInfo && "transparent" in texInfo ? texInfo.transparent : null,
     );
     if (resolvedTexture) {
       let activeTexture = resolvedTexture;
