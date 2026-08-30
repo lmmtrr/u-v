@@ -13,6 +13,7 @@ import type { IndicesArray } from "@babylonjs/core/types";
 import { Animation } from "@babylonjs/core/Animations/animation";
 import { AnimationGroup } from "@babylonjs/core/Animations/animationGroup";
 import { GLTF2Export } from "@babylonjs/serializers/glTF/2.0/glTFSerializer";
+import type { Observer } from "@babylonjs/core/Misc/observable";
 import { state } from "./state";
 import {
   createAnimationUI,
@@ -1143,6 +1144,8 @@ export class SceneManager {
         });
       }
       updateProgress(45, "Preparing scene serialization...");
+      this.pauseSceneObserversForExport(exportRestores);
+      this.alignSkinRootsForExport(exportRestores);
       this.prepareMaterialsForExport(exportRestores);
       this.prepareMeshDataForExport(exportRestores);
       this.consolidateSubMeshesForExport(exportRestores);
@@ -1214,6 +1217,103 @@ export class SceneManager {
       exportRestores.length = 0;
       hideProgress();
     }
+  }
+  private pauseSceneObserversForExport(restores: Array<() => void>): void {
+    const observable = this.scene.onBeforeRenderObservable;
+    const entries: Array<{
+      observer: Observer<Scene> | null;
+      assign: (next: Observer<Scene> | null) => void;
+    }> = [
+      {
+        observer: state.animationObserver,
+        assign: (next) => {
+          state.animationObserver = next;
+        },
+      },
+      {
+        observer: state.physicsObserver,
+        assign: (next) => {
+          state.physicsObserver = next;
+        },
+      },
+    ];
+    entries.forEach(({ observer, assign }) => {
+      if (!observer) return;
+      observable.remove(observer);
+      assign(null);
+      restores.push(() => {
+        assign(observable.add(observer.callback));
+      });
+    });
+  }
+  private alignSkinRootsForExport(restores: Array<() => void>): void {
+    const nearlyEqual = (a: Matrix, b: Matrix): boolean => {
+      for (let i = 0; i < 16; i++) {
+        if (Math.abs(a.m[i] - b.m[i]) > 1e-6) return false;
+      }
+      return true;
+    };
+    const meshesBySkeleton = new Map<Skeleton, Mesh[]>();
+    this.scene.meshes.forEach((node) => {
+      const mesh = node as Mesh;
+      if (!mesh.skeleton) return;
+      const meshes = meshesBySkeleton.get(mesh.skeleton);
+      if (meshes) meshes.push(mesh);
+      else meshesBySkeleton.set(mesh.skeleton, [mesh]);
+    });
+    meshesBySkeleton.forEach((meshes, skeleton) => {
+      const reference =
+        meshes.find((mesh) => mesh.isVisible && mesh.isEnabled()) || meshes[0];
+      const referenceWorld = reference.computeWorldMatrix(true).clone();
+      const uniformWorld = meshes.every((mesh) =>
+        nearlyEqual(mesh.computeWorldMatrix(true), referenceWorld),
+      );
+      const referenceParent = reference.parent as TransformNode | null;
+      const referenceParentWorld = referenceParent
+        ? referenceParent.computeWorldMatrix(true).clone()
+        : Matrix.Identity();
+      const targetWorld = uniformWorld ? referenceWorld : referenceParentWorld;
+      let holder: TransformNode | null = null;
+      skeleton.bones.forEach((bone) => {
+        if (bone.getParent()) return;
+        const rootNode = bone.getTransformNode();
+        if (!rootNode) return;
+        const previousParent = rootNode.parent as TransformNode | null;
+        const previousParentWorld = previousParent
+          ? previousParent.computeWorldMatrix(true)
+          : Matrix.Identity();
+        if (nearlyEqual(previousParentWorld, targetWorld)) return;
+        let newParent = referenceParent;
+        if (!newParent || !nearlyEqual(referenceParentWorld, targetWorld)) {
+          if (!holder) {
+            holder = new TransformNode(
+              `${skeleton.name}_exportRoot`,
+              this.scene,
+            );
+            const holderScaling = new Vector3();
+            const holderRotation = new Quaternion();
+            const holderPosition = new Vector3();
+            targetWorld.decompose(
+              holderScaling,
+              holderRotation,
+              holderPosition,
+            );
+            holder.position.copyFrom(holderPosition);
+            holder.rotationQuaternion = holderRotation;
+            holder.scaling.copyFrom(holderScaling);
+          }
+          newParent = holder;
+        }
+        rootNode.parent = newParent;
+        restores.push(() => {
+          rootNode.parent = previousParent;
+        });
+      });
+      const created = holder as TransformNode | null;
+      if (created) {
+        restores.push(() => created.dispose(true));
+      }
+    });
   }
   private prepareMaterialsForExport(restores: Array<() => void>): void {
     const exact = this.scene.getEngine().useExactSrgbConversions;
