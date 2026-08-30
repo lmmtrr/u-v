@@ -161,9 +161,49 @@ export class SceneManager {
       }
     });
     if (matchingRenderers.length > 0) {
-      const currentEnabled = matchingRenderers.some(
-        (data) => data.m_Enabled !== false,
-      );
+      const matchingMeshes = state.createdMeshes.filter((mesh) => {
+        if (!mesh.metadata) return false;
+        const meshPathIdStr = String(mesh.metadata.rendererPathId);
+        return matchingRenderers.some((data) => {
+          const pathIdStr = String(data.path_id || "");
+          const meshMeta = data.mesh as Record<string, JSONValue> | undefined;
+          const displayName = String(
+            data.name || meshMeta?.name || `part_${pathIdStr}`,
+          );
+          const idMatch =
+            meshPathIdStr === pathIdStr ||
+            meshPathIdStr === `orphan_${pathIdStr}`;
+          const normMeshName = (mesh.name || "").toLowerCase();
+          const normDispName = (displayName || "").toLowerCase();
+          const normDataName = String(data.name || "").toLowerCase();
+          const normPartName = (partName || "").toLowerCase();
+          const nameMatch =
+            (normMeshName && normDispName && normMeshName === normDispName) ||
+            (normMeshName && normDataName && normMeshName === normDataName) ||
+            (normMeshName && normPartName && normMeshName === normPartName);
+          return idMatch || nameMatch;
+        });
+      });
+      let currentEnabled: boolean;
+      if (matchingMeshes.length > 0) {
+        currentEnabled = matchingMeshes.some((m) => m.isEnabled());
+      } else {
+        const hasTrue = matchingRenderers.some(
+          (data) => data.m_Enabled === true,
+        );
+        const hasFalse = matchingRenderers.some(
+          (data) => data.m_Enabled === false,
+        );
+        if (hasTrue) {
+          currentEnabled = true;
+        } else if (hasFalse) {
+          currentEnabled = false;
+        } else {
+          currentEnabled = matchingRenderers.some(
+            (data) => data.m_Enabled !== false,
+          );
+        }
+      }
       const nextEnabled = !currentEnabled;
       matchingRenderers.forEach((data) => {
         data.m_Enabled = nextEnabled;
