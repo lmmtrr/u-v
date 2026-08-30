@@ -850,7 +850,10 @@ export class SceneManager {
       const baseName = activeFile
         ? activeFile.name?.replace(/\.[^/.]+$/, "")
         : "model";
-      const exportName = `${baseName}_export`;
+      const animName = state.currentAnimationData?.name;
+      const exportName = animName
+        ? `${baseName}_${animName}_export`
+        : `${baseName}_export`;
       updateProgress(15, "Converting active animations for GLB...");
       const createdAnimations: Array<{ node: any; anims: any[] }> = [];
       let tempAnimGroup: any = null;
@@ -1097,7 +1100,10 @@ export class SceneManager {
         animData.accumulatedTime = originalTime;
         state.animationPlaying = originalPlaying;
         evaluateFrame(originalTime * frameRate);
-        tempAnimGroup = new AnimationGroup("ExportAnimationClip", this.scene);
+        tempAnimGroup = new AnimationGroup(
+          animData.name || "ExportAnimationClip",
+          this.scene,
+        );
         nodeKeys.forEach((keys, node) => {
           const nodeAnims: any[] = [];
           if (keys.posKeys.length > 0) {
