@@ -359,7 +359,12 @@ export async function instantiateMesh(
           },
         );
       }
-      if (needsBindCorrection && mesh_data.m_Skin && mesh_data.m_Skin.length > 0) {
+      if (
+        needsBindCorrection &&
+        !renderer.skipBindPoseCorrection &&
+        mesh_data.m_Skin &&
+        mesh_data.m_Skin.length > 0
+      ) {
         const srcPositions = transformedPositions as ArrayLike<number>;
         const srcNormals = transformedNormals as ArrayLike<number> | undefined;
         const outPositions = new Float32Array(srcPositions.length);

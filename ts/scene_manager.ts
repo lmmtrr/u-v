@@ -739,6 +739,7 @@ export class SceneManager {
             rootName.includes("connect") ||
             rootName.includes("head");
           if (isModular) {
+            let remapped = false;
             smr.bone_path_ids = smr.bone_path_ids.map((boneId) => {
               const boneIdStr = String(boneId);
               const node = transformNodes.get(boneIdStr);
@@ -748,12 +749,16 @@ export class SceneManager {
                 if (boneRootId !== mainRigRootId) {
                   const matchingMainBoneId = mainRigTransformsByName.get(name);
                   if (matchingMainBoneId) {
+                    remapped = true;
                     return matchingMainBoneId;
                   }
                 }
               }
               return boneIdStr;
             });
+            if (remapped || originalRootId !== mainRigRootId) {
+              smr.skipBindPoseCorrection = true;
+            }
           }
         }
       });
