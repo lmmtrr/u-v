@@ -195,9 +195,9 @@ export async function instantiateMesh(
       }
     }
   }
-  const transformedPositions =
+  let transformedPositions =
     (renderer.transformedPositions as Float32Array | undefined) || mesh_data.m_Vertices;
-  const transformedNormals = (renderer.transformedNormals as Float32Array | undefined) || mesh_data.m_Normals;
+  let transformedNormals = (renderer.transformedNormals as Float32Array | undefined) || mesh_data.m_Normals;
   if (!transformedPositions || transformedPositions.length === 0) {
     customMesh.dispose();
     return null;
@@ -319,6 +319,8 @@ export async function instantiateMesh(
       });
       customMesh.metadata.hashToBoneMap = boneMap;
       let localToGlobal = new Int32Array(0);
+      const bindCorrections: Array<Matrix | null> = [];
+      let needsBindCorrection = false;
       if (mesh_data.m_BindPose) {
         localToGlobal = new Int32Array(mesh_data.m_BindPose.length);
         const invMeshMatrix = Matrix.Invert(meshMatrix);
@@ -332,8 +334,21 @@ export async function instantiateMesh(
               localToGlobal[i] = skeleton.bones.indexOf(targetBone);
               const arr = ("m" in pose ? pose.m : pose) as number[];
               const bindPose = Matrix.FromArray(arr).transpose();
-              (targetBone as { _invertedBindMatrix?: Matrix })._invertedBindMatrix =
-                bindPose.multiply(invMeshMatrix);
+              const restAbsolute = Matrix.Invert(
+                targetBone.getAbsoluteInverseBindMatrix(),
+              );
+              const correction = invMeshMatrix
+                .multiply(bindPose)
+                .multiply(restAbsolute);
+              bindCorrections[i] = correction;
+              const cm = correction.m;
+              const im = Matrix.IdentityReadOnly.m;
+              for (let k = 0; k < 16; k++) {
+                if (Math.abs(cm[k] - im[k]) > 1e-4) {
+                  needsBindCorrection = true;
+                  break;
+                }
+              }
             } else {
               const missingId = bonePathIds ? bonePathIds[i] : "undefined";
               console.warn(
@@ -343,6 +358,52 @@ export async function instantiateMesh(
             }
           },
         );
+      }
+      if (needsBindCorrection && mesh_data.m_Skin && mesh_data.m_Skin.length > 0) {
+        const srcPositions = transformedPositions as ArrayLike<number>;
+        const srcNormals = transformedNormals as ArrayLike<number> | undefined;
+        const outPositions = new Float32Array(srcPositions.length);
+        const outNormals =
+          srcNormals && srcNormals.length > 0
+            ? new Float32Array(srcNormals.length)
+            : null;
+        const p = new Vector3(), n = new Vector3();
+        const tp = new Vector3(), tn = new Vector3();
+        mesh_data.m_Skin.forEach((skin, vi) => {
+          const o = vi * 3;
+          if (o + 2 >= srcPositions.length) return;
+          p.set(srcPositions[o], srcPositions[o + 1], srcPositions[o + 2]);
+          if (outNormals) n.set(srcNormals![o], srcNormals![o + 1], srcNormals![o + 2]);
+          let px = 0, py = 0, pz = 0, nx = 0, ny = 0, nz = 0, total = 0;
+          for (let b = 0; b < 4; b++) {
+            const w = skin.weight[b];
+            const correction = bindCorrections[skin.boneIndex[b]];
+            if (!(w > 0) || !correction) continue;
+            Vector3.TransformCoordinatesToRef(p, correction, tp);
+            px += tp.x * w; py += tp.y * w; pz += tp.z * w;
+            if (outNormals) {
+              Vector3.TransformNormalToRef(n, correction, tn);
+              nx += tn.x * w; ny += tn.y * w; nz += tn.z * w;
+            }
+            total += w;
+          }
+          if (total <= 0) {
+            outPositions.set([p.x, p.y, p.z], o);
+            if (outNormals) outNormals.set([n.x, n.y, n.z], o);
+            return;
+          }
+          outPositions[o] = px / total;
+          outPositions[o + 1] = py / total;
+          outPositions[o + 2] = pz / total;
+          if (outNormals) {
+            const len = Math.hypot(nx, ny, nz) || 1;
+            outNormals[o] = nx / len;
+            outNormals[o + 1] = ny / len;
+            outNormals[o + 2] = nz / len;
+          }
+        });
+        transformedPositions = outPositions as never;
+        if (outNormals) transformedNormals = outNormals as never;
       }
       activeSkeleton = skeleton;
       activeLocalToGlobal = localToGlobal;
