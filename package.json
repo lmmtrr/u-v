@@ -1,6 +1,6 @@
 {
   "name": "u-v",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Unity 3D Asset Viewer",
   "scripts": {
     "build": "bun run build.ts --minify",
