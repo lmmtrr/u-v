@@ -22,6 +22,8 @@ export const createScene = (engine: Engine): Scene => {
   if (canvas) {
     camera.attachControl(canvas, true);
   }
+  camera.lowerBetaLimit = null;
+  camera.upperBetaLimit = null;
   camera.wheelPrecision = 500;
   camera.minZ = 0.001;
   camera.maxZ = 10000;

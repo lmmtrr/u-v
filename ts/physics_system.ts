@@ -379,6 +379,7 @@ export const createPhysicsObserver = (
         Quaternion.RotationAxisToRef(Axis.Y, -dAlpha, tempRotY);
         const lookDir = camera.position.subtract(pivot).normalize();
         const rightDir = Vector3.Cross(lookDir, Axis.Y).normalize();
+        if (Math.sin(camera.beta) < 0) rightDir.negateInPlace();
         Quaternion.RotationAxisToRef(rightDir, -dBeta, tempRotX);
         tempRotX.multiplyToRef(tempRotY, tempCombinedRot);
         for (const entry of allPhysicsEntries) {
