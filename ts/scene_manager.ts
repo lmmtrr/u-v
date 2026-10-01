@@ -1888,7 +1888,7 @@ export class SceneManager {
               const cleanGoName = goNameLower.replace(/[^a-z0-9]/g, "");
               if (
                 cleanGoName.includes(cleanTarget) ||
-                cleanTarget.includes(cleanGoName)
+                (cleanGoName.length >= 4 && cleanTarget.endsWith(cleanGoName))
               ) {
                 return pathId;
               }
