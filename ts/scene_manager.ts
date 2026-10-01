@@ -2056,7 +2056,7 @@ export class SceneManager {
               const invNewParentWorldMatrix =
                 Matrix.Invert(newParentWorldMatrix);
               const newLocalMatrix =
-                invNewParentWorldMatrix.multiply(oldWorldMatrix);
+                oldWorldMatrix.multiply(invNewParentWorldMatrix);
               const newTranslation = new Vector3();
               const newRotation = new Quaternion();
               const newScaling = new Vector3();

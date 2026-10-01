@@ -57,7 +57,7 @@ export const getRelativeMatrix = (
         : Quaternion.Identity(),
       translation,
     );
-    matrix = local.multiply(matrix);
+    matrix = matrix.multiply(local);
     const father = t.m_Father as Record<string, JSONValue> | undefined;
     currentId = String(father?.path_id || father?.m_PathID || "0");
   }
