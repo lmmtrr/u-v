@@ -1,7 +1,7 @@
 import { Scene } from "@babylonjs/core/scene";
 import { Engine } from "@babylonjs/core/Engines/engine";
 import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight";
-import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { ArcRotateCamera } from "@babylonjs/core/Cameras/arcRotateCamera";
 import { Color4 } from "@babylonjs/core/Maths/math.color";
 export const createScene = (engine: Engine): Scene => {
@@ -24,7 +24,6 @@ export const createScene = (engine: Engine): Scene => {
   }
   camera.lowerBetaLimit = null;
   camera.upperBetaLimit = null;
-  enableTrackballRotation(camera);
   camera.wheelPrecision = 500;
   camera.minZ = 0.001;
   camera.maxZ = 10000;
@@ -41,31 +40,6 @@ export const createScene = (engine: Engine): Scene => {
   );
   hemiLight.intensity = 0.6;
   return scene;
-};
-const enableTrackballRotation = (camera: ArcRotateCamera) => {
-  const offset = new Vector3();
-  const up = new Vector3();
-  const yToUp = new Matrix();
-  camera.onAfterCheckInputsObservable.add(() => {
-    if (Math.abs(camera.beta - Math.PI / 2) < 1e-6) return;
-    const sinb = Math.sin(camera.beta);
-    offset.set(
-      Math.cos(camera.alpha) * sinb,
-      Math.cos(camera.beta),
-      Math.sin(camera.alpha) * sinb
-    );
-    Matrix.RotationAlignToRef(Vector3.UpReadOnly, camera.upVector, yToUp);
-    Vector3.TransformNormalToRef(offset, yToUp, offset);
-    offset.normalize();
-    const dot = Vector3.Dot(camera.upVector, offset);
-    camera.upVector.subtractToRef(offset.scale(dot), up);
-    if (sinb < 0) up.negateInPlace();
-    camera.upVector = up;
-    camera.position
-      .copyFrom(camera.target)
-      .addInPlace(offset.scaleInPlace(camera.radius));
-    camera.rebuildAnglesAndRadius();
-  });
 };
 export const setupResizeListener = (engine: Engine) => {
   window.addEventListener("resize", () => {
