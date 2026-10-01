@@ -4,6 +4,7 @@ import { Bone } from "@babylonjs/core/Bones/bone";
 import { Vector3, Quaternion, Matrix } from "@babylonjs/core/Maths/math.vector";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import type { UnityObject, JSONValue } from "./types";
+import { HUMAN_BONE_NAMES, getBonePathForHumanBone } from "./humanoid_system";
 export const findRoot = (
   pathId: string,
   transformsByPathId: Map<string, UnityObject>,
@@ -174,6 +175,34 @@ const findDeepestNameMatch = (
   walk(root, 0);
   return best;
 };
+const HEAD_PART_PATTERN = /hair|tiara|helmet|head|face/i;
+const HEAD_HUMAN_BONE_INDEX = HUMAN_BONE_NAMES.indexOf("Head");
+const isHeadPart = (root: Bone): boolean => {
+  const walk = (b: Bone): boolean =>
+    HEAD_PART_PATTERN.test(b.name) || b.getChildren().some(walk);
+  return walk(root);
+};
+const findAvatarHeadBone = (skeleton: Skeleton): Bone | null => {
+  const avatar = (skeleton as { avatar?: UnityObject | null }).avatar;
+  if (!avatar) return null;
+  const path = getBonePathForHumanBone(avatar, HEAD_HUMAN_BONE_INDEX);
+  if (!path) return null;
+  const name = path.split("/").pop();
+  let byName: Bone | null = null;
+  for (const bone of skeleton.bones) {
+    const fullPath = (bone as { fullPath?: string }).fullPath;
+    if (
+      fullPath &&
+      (fullPath === path ||
+        fullPath.endsWith("/" + path) ||
+        path.endsWith("/" + fullPath))
+    ) {
+      return bone;
+    }
+    if (!byName && bone.name === name) byName = bone;
+  }
+  return byName;
+};
 export const computeGenericPartAttachments = (
   skeletons: Map<
     string,
@@ -195,20 +224,27 @@ export const computeGenericPartAttachments = (
       if (!nameToHumanBone.has(b.name)) nameToHumanBone.set(b.name, b);
     });
   });
+  let headBone: Bone | null = null;
+  for (const s of humanSkeletons) {
+    headBone = findAvatarHeadBone(s);
+    if (headBone) break;
+  }
   skeletons.forEach(({ skeleton }) => {
     if ((skeleton as { avatarIsGenuine?: boolean }).avatarIsGenuine) return;
     skeleton.computeAbsoluteMatrices(true);
     const roots = skeleton.bones.filter((b) => !b.getParent());
     roots.forEach((root) => {
-      const match = findDeepestNameMatch(root, nameToHumanBone);
-      if (!match) return;
+      const humanBone =
+        findDeepestNameMatch(root, nameToHumanBone)?.humanBone ??
+        (headBone && isHeadPart(root) ? headBone : null);
+      if (!humanBone) return;
       const partNode = root.getTransformNode();
       if (!partNode) return;
       attachments.push({
         partNode,
-        humanBone: match.humanBone,
+        humanBone,
         partBindAbsolute: root.getAbsoluteMatrix().clone(),
-        humanBoneBindAbsolute: match.humanBone.getAbsoluteMatrix().clone(),
+        humanBoneBindAbsolute: humanBone.getAbsoluteMatrix().clone(),
       });
     });
   });
