@@ -9,6 +9,11 @@ export interface ExternalRefIndex {
     ownerPathId: string,
     fileId: number,
   ): RefTarget;
+  assetName(
+    ownerFileName: string,
+    ownerPathId: string,
+    fileId: number,
+  ): string | null;
 }
 const UNKNOWN: RefTarget = { fileName: null, known: false };
 export const buildExternalRefIndex = (
@@ -25,23 +30,38 @@ export const buildExternalRefIndex = (
       fileNameByCab.set(cabName.toLowerCase(), fileName);
     });
   });
+  const getOwnerAsset = (ownerFileName: string, ownerPathId: string) => {
+    const info = infoByFileName.get(ownerFileName);
+    if (!info) return null;
+    const assetNames = Object.keys(info.assets);
+    const ownerAsset =
+      info.object_assets?.[String(ownerPathId)] ||
+      (assetNames.length === 1 ? assetNames[0] : "");
+    return ownerAsset ? { info, ownerAsset } : null;
+  };
+  const getAssetName = (
+    ownerFileName: string,
+    ownerPathId: string,
+    fileId: number,
+  ): string | null => {
+    const owner = getOwnerAsset(ownerFileName, ownerPathId);
+    if (!owner) return null;
+    const name = fileId
+      ? (owner.info.assets[owner.ownerAsset] || [])[fileId - 1]
+      : owner.ownerAsset;
+    return name ? name.toLowerCase() : null;
+  };
   return {
+    assetName: getAssetName,
     resolve(ownerFileName, ownerPathId, fileId) {
       if (!fileId)
         return ownerFileName
           ? { fileName: ownerFileName, known: true }
           : UNKNOWN;
-      const info = infoByFileName.get(ownerFileName);
-      if (!info) return UNKNOWN;
-      const assetNames = Object.keys(info.assets);
-      const ownerAsset =
-        info.object_assets?.[String(ownerPathId)] ||
-        (assetNames.length === 1 ? assetNames[0] : "");
-      if (!ownerAsset) return UNKNOWN;
-      const externalName = (info.assets[ownerAsset] || [])[fileId - 1];
+      const externalName = getAssetName(ownerFileName, ownerPathId, fileId);
       if (!externalName) return UNKNOWN;
       return {
-        fileName: fileNameByCab.get(externalName.toLowerCase()) || null,
+        fileName: fileNameByCab.get(externalName) || null,
         known: true,
       };
     },

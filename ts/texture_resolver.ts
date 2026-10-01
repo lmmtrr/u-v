@@ -124,6 +124,11 @@ export function resolveRendererTextures(
     }
     return global.get(pathId) || null;
   };
+  const fallbackAssignments: Array<{
+    renderer: Record<string, JSONValue>;
+    textureId: string;
+    materialAsset: string | null;
+  }> = [];
   objects.forEach((obj) => {
     const renderer = (obj?.SkinnedMeshRenderer || obj?.MeshRenderer) as Record<string, JSONValue> | undefined;
     if (!renderer) return;
@@ -354,7 +359,58 @@ export function resolveRendererTextures(
             isFallback: true,
           },
         ] as never as JSONValue;
+        const matPtr = rendererMaterials[0];
+        fallbackAssignments.push({
+          renderer,
+          textureId: String((bestTex as TextureMeta).path_id),
+          materialAsset: matPtr
+            ? lookup.externalRefs?.assetName(
+                rendererFile,
+                getRawPathId(renderer),
+                getPointerFileId(matPtr),
+              ) ?? null
+            : null,
+        });
       }
+    }
+  });
+  dropForeignFallbackTextures(fallbackAssignments);
+}
+function dropForeignFallbackTextures(
+  assignments: Array<{
+    renderer: Record<string, JSONValue>;
+    textureId: string;
+    materialAsset: string | null;
+  }>,
+) {
+  const byTexture = new Map<string, typeof assignments>();
+  for (const a of assignments) {
+    if (!a.materialAsset) continue;
+    const list = byTexture.get(a.textureId) || [];
+    list.push(a);
+    byTexture.set(a.textureId, list);
+  }
+  byTexture.forEach((list) => {
+    const weightByAsset = new Map<string, number>();
+    for (const a of list) {
+      const mesh = a.renderer.mesh as unknown as MeshMeta | undefined;
+      const weight = mesh?.m_VertexCount || 0;
+      weightByAsset.set(
+        a.materialAsset!,
+        (weightByAsset.get(a.materialAsset!) || 0) + weight,
+      );
+    }
+    if (weightByAsset.size < 2) return;
+    let ownerAsset = "";
+    let maxWeight = -1;
+    weightByAsset.forEach((weight, asset) => {
+      if (weight > maxWeight) {
+        maxWeight = weight;
+        ownerAsset = asset;
+      }
+    });
+    for (const a of list) {
+      if (a.materialAsset !== ownerAsset) a.renderer.textures = [];
     }
   });
 }
