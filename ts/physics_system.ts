@@ -1,5 +1,4 @@
 import { Vector3, Quaternion, Matrix } from "@babylonjs/core/Maths/math.vector";
-import { Axis } from "@babylonjs/core/Maths/math.axis";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import { Scene } from "@babylonjs/core/scene";
 import { Bone } from "@babylonjs/core/Bones/bone";
@@ -307,23 +306,20 @@ export const createPhysicsObserver = (
   const fixedDtSqr = fixedDt * fixedDt;
   let wasPhysicsEnabled = false;
   const camera = scene.activeCamera as ArcRotateCamera | null;
-  let prevAlpha = camera ? camera.alpha : 0;
-  let prevBeta = camera ? camera.beta : 0;
+  const prevView = camera ? camera.getViewMatrix().clone() : new Matrix();
   let prevTarget = camera
     ? camera.target?.clone() ||
       (camera.getTarget && camera.getTarget().clone()) ||
       Vector3.Zero()
     : Vector3.Zero();
-  const tempRotY = new Quaternion();
-  const tempRotX = new Quaternion();
-  const tempCombinedRot = new Quaternion();
+  const tempInvView = new Matrix();
+  const tempCameraRot = new Matrix();
   const rel = new Vector3();
   return scene.onBeforeRenderObservable.add(() => {
     if (!state.physicsEnabled) {
       if (scene.activeCamera) {
         const camera = scene.activeCamera as ArcRotateCamera;
-        prevAlpha = camera.alpha;
-        prevBeta = camera.beta;
+        prevView.copyFrom(camera.getViewMatrix());
         prevTarget.copyFrom(
           camera.target ||
             (camera.getTarget && camera.getTarget()) ||
@@ -371,24 +367,23 @@ export const createPhysicsObserver = (
         camera.target ||
         (camera.getTarget && camera.getTarget()) ||
         Vector3.Zero();
-      const dAlpha = camera.alpha - prevAlpha;
-      const dBeta = camera.beta - prevBeta;
+      const view = camera.getViewMatrix();
       const dTarget = currentTarget.subtract(prevTarget);
       const pivot = currentTarget;
-      if (Math.abs(dAlpha) > 0.00001 || Math.abs(dBeta) > 0.00001) {
-        Quaternion.RotationAxisToRef(Axis.Y, -dAlpha, tempRotY);
-        const lookDir = camera.position.subtract(pivot).normalize();
-        const rightDir = Vector3.Cross(lookDir, Axis.Y).normalize();
-        if (Math.sin(camera.beta) < 0) rightDir.negateInPlace();
-        Quaternion.RotationAxisToRef(rightDir, -dBeta, tempRotX);
-        tempRotX.multiplyToRef(tempRotY, tempCombinedRot);
+      view.invertToRef(tempInvView);
+      prevView.multiplyToRef(tempInvView, tempCameraRot);
+      const m = tempCameraRot.m;
+      if (
+        Math.abs(m[0] - 1) + Math.abs(m[5] - 1) + Math.abs(m[10] - 1) >
+        0.0000000001
+      ) {
         for (const entry of allPhysicsEntries) {
           if (entry.type === "SpringBone") {
             entry.currTipPos.subtractToRef(pivot, rel);
-            rel.rotateByQuaternionToRef(tempCombinedRot, rel);
+            Vector3.TransformNormalToRef(rel, tempCameraRot, rel);
             entry.currTipPos.copyFrom(pivot).addInPlace(rel);
             entry.prevTipPos.subtractToRef(pivot, rel);
-            rel.rotateByQuaternionToRef(tempCombinedRot, rel);
+            Vector3.TransformNormalToRef(rel, tempCameraRot, rel);
             entry.prevTipPos.copyFrom(pivot).addInPlace(rel);
           }
         }
@@ -401,8 +396,7 @@ export const createPhysicsObserver = (
           }
         }
       }
-      prevAlpha = camera.alpha;
-      prevBeta = camera.beta;
+      prevView.copyFrom(view);
       prevTarget.copyFrom(pivot);
     }
     accumulator += dt;
