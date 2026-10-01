@@ -319,11 +319,22 @@ export async function instantiateMesh(
       });
       customMesh.metadata.hashToBoneMap = boneMap;
       let localToGlobal = new Int32Array(0);
-      const bindCorrections: Array<Matrix | null> = [];
+      let bindCorrections: Array<Matrix | null> = [];
       let needsBindCorrection = false;
       if (mesh_data.m_BindPose) {
         localToGlobal = new Int32Array(mesh_data.m_BindPose.length);
         const invMeshMatrix = Matrix.Invert(meshMatrix);
+        const rigParentId = String(
+          (state.transformsByPathId.get(String(hierarchyRootId))?.m_Father as
+            | Record<string, JSONValue>
+            | undefined)?.path_id || "0",
+        );
+        const rigParentMatrix =
+          rigParentId !== "0"
+            ? getRelativeMatrix(rigParentId, rigParentId, state.transformsByPathId)
+            : null;
+        const withoutParent: Array<Matrix | null> = [];
+        const withParent: Array<Matrix | null> = [];
         mesh_data.m_BindPose.forEach(
           (pose: { m?: number[] } | number[], i: number) => {
             let targetBone =
@@ -340,15 +351,10 @@ export async function instantiateMesh(
               const correction = invMeshMatrix
                 .multiply(bindPose)
                 .multiply(restAbsolute);
-              bindCorrections[i] = correction;
-              const cm = correction.m;
-              const im = Matrix.IdentityReadOnly.m;
-              for (let k = 0; k < 16; k++) {
-                if (Math.abs(cm[k] - im[k]) > 1e-4) {
-                  needsBindCorrection = true;
-                  break;
-                }
-              }
+              withoutParent[i] = correction;
+              withParent[i] = rigParentMatrix
+                ? correction.multiply(rigParentMatrix)
+                : correction;
             } else {
               const missingId = bonePathIds ? bonePathIds[i] : "undefined";
               console.warn(
@@ -357,6 +363,22 @@ export async function instantiateMesh(
               localToGlobal[i] = 0;
             }
           },
+        );
+        const im = Matrix.IdentityReadOnly.m;
+        const deviation = (corrections: Array<Matrix | null>) => {
+          let total = 0;
+          corrections.forEach((c) => {
+            if (!c) return;
+            for (let k = 0; k < 16; k++) total += Math.abs(c.m[k] - im[k]);
+          });
+          return total;
+        };
+        bindCorrections =
+          rigParentMatrix && deviation(withParent) < deviation(withoutParent)
+            ? withParent
+            : withoutParent;
+        needsBindCorrection = bindCorrections.some(
+          (c) => !!c && c.m.some((v, k) => Math.abs(v - im[k]) > 1e-4),
         );
       }
       if (
