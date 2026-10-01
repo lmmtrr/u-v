@@ -409,6 +409,14 @@
   font-size: 13px;
 }
 
+.part-group>.part-row {
+  position: sticky;
+  top: var(--file-header-height, 0px);
+  z-index: 4;
+  background: #1e1e24;
+  border-radius: 6px;
+}
+
 .visibility-toggle {
   width: 20px;
   height: 20px;
@@ -686,18 +694,25 @@
   margin-bottom: 2px;
 }
 
-.submeshes-list,
 .blendshapes-list {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
+.submeshes-list {
+  display: flex;
+  flex-direction: column;
+}
+
 .submesh-row {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 2px 0;
   font-size: 11px;
+  cursor: pointer;
+  user-select: none;
 }
 
 .submesh-eye-toggle {

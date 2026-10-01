@@ -186,7 +186,9 @@ export class SceneManager {
       });
       let currentEnabled: boolean;
       if (matchingMeshes.length > 0) {
-        currentEnabled = matchingMeshes.some((m) => m.isEnabled());
+        currentEnabled = matchingMeshes.some(
+          (m) => m.isEnabled() && this.isMeshFullyVisible(m),
+        );
       } else {
         const hasTrue = matchingRenderers.some(
           (data) => data.m_Enabled === true,
@@ -321,6 +323,7 @@ export class SceneManager {
         });
       }
       const matchingRenderers: Array<Record<string, JSONValue>> = [];
+      const fullyVisibleByRenderer = new Map<Record<string, JSONValue>, boolean>();
       file.objects.forEach((obj) => {
         const data = (obj?.SkinnedMeshRenderer ||
           obj?.MeshRenderer ||
@@ -408,18 +411,24 @@ export class SceneManager {
             mesh.setEnabled(nextEnabled);
           }
           matchedRenderer.m_Enabled = mesh.isEnabled();
+          fullyVisibleByRenderer.set(
+            matchedRenderer,
+            this.isMeshFullyVisible(mesh),
+          );
         }
       });
       const allToggles = document.querySelectorAll(".visibility-toggle");
       const allNames = document.querySelectorAll(".part-name");
       matchingRenderers.forEach((data) => {
         const pathIdStr = String(data.path_id || "");
+        const isActive =
+          !!data.m_Enabled && fullyVisibleByRenderer.get(data) !== false;
         allToggles.forEach((t) => {
           const pid =
             (t as HTMLElement).getAttribute("data-path-id") ||
             (t as HTMLElement).dataset?.pathId;
           if (this.isApproxPathIdMatch(pid, pathIdStr)) {
-            t.classList.toggle("active", !!data.m_Enabled);
+            t.classList.toggle("active", isActive);
           }
         });
         allNames.forEach((n) => {
@@ -427,7 +436,7 @@ export class SceneManager {
             (n as HTMLElement).getAttribute("data-path-id") ||
             (n as HTMLElement).dataset?.pathId;
           if (this.isApproxPathIdMatch(pid, pathIdStr)) {
-            n.classList.toggle("active", !!data.m_Enabled);
+            n.classList.toggle("active", isActive);
           }
         });
       });
@@ -464,8 +473,16 @@ export class SceneManager {
       mesh.subMeshes = originalSubMeshes.filter((_, idx) =>
         mesh.metadata.visibleSubmeshIndices.has(idx),
       );
+      updateUIState({ loadedFiles: [...state.loadedFiles] });
     }
   };
+  private isMeshFullyVisible(mesh: Mesh): boolean {
+    const originalSubMeshes = mesh.metadata?.originalSubMeshes as
+      | SubMesh[]
+      | undefined;
+    if (!originalSubMeshes) return true;
+    return originalSubMeshes.every((sub) => mesh.subMeshes.includes(sub));
+  }
   public updateMorphTargetWeight = (
     partId: string,
     targetIndex: number,

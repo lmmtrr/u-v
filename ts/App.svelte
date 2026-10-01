@@ -50,6 +50,7 @@
   let nextNotificationId = 0;
   let partFilters: Record<number, string> = {};
   let expandedParts: Record<string, boolean> = {};
+  let fileHeaderHeights: Record<number, number> = {};
   $: filesWithMeshes = loadedFiles.filter(
     (file) =>
       !file.removedFromUI &&
@@ -577,8 +578,8 @@
       <div class="ui-scroll-area">
         {#each loadedFiles as file, fileIndex}
           {#if !file.removedFromUI && file.objects.some((obj) => obj.SkinnedMeshRenderer || obj.MeshRenderer || obj.Mesh)}
-            <div class="file-tree-item">
-              <div class="file-header-block">
+            <div class="file-tree-item" style="--file-header-height: {fileHeaderHeights[fileIndex] || 0}px;">
+              <div class="file-header-block" bind:offsetHeight={fileHeaderHeights[fileIndex]}>
                 <div class="file-row">
                   <div
                     class="expand-toggle"
@@ -678,7 +679,9 @@
                     {@const matchesSubmesh = subDetails.subMaterials.some(sub => sub.name.toLowerCase().includes(query))}
                     {@const isFilterMatch = !query || matchesMesh || matchesSubmesh}
                     {@const isExpanded = expandedParts[part.id] || (query && matchesSubmesh)}
+                    {@const isPartActive = part.enabled !== false && subDetails.subMaterials.every((sub) => sub.visible)}
                     {#if isFilterMatch}
+                      <div class="part-group">
                       <div class="part-row">
                         {#if subDetails.hasDetails}
                           <div
@@ -693,12 +696,12 @@
                         {/if}
                         <div
                           class="visibility-toggle"
-                          class:active={part.enabled !== false}
+                          class:active={isPartActive}
                           data-path-id={part.id}
                           data-part-name={part.name}
                           on:mousedown={(e) => {
                             e.preventDefault();
-                            const nextVal = !(part.enabled !== false);
+                            const nextVal = !isPartActive;
                             dragToggleState = {
                               active: true,
                               targetValue: nextVal,
@@ -714,7 +717,7 @@
                               dragToggleState.type === "main" &&
                               dragToggleState.fileIndex === fileIndex
                             ) {
-                              const currentVal = part.enabled !== false;
+                              const currentVal = isPartActive;
                               if (currentVal !== dragToggleState.targetValue) {
                                 onToggleVisibility(fileIndex, part.id, part.name);
                               }
@@ -723,12 +726,12 @@
                         />
                         <div
                           class="part-name"
-                          class:active={part.enabled !== false}
+                          class:active={isPartActive}
                           data-path-id={part.id}
                           data-part-name={part.name}
                           on:mousedown={(e) => {
                             e.preventDefault();
-                            const nextVal = !(part.enabled !== false);
+                            const nextVal = !isPartActive;
                             dragToggleState = {
                               active: true,
                               targetValue: nextVal,
@@ -744,7 +747,7 @@
                               dragToggleState.type === "main" &&
                               dragToggleState.fileIndex === fileIndex
                             ) {
-                              const currentVal = part.enabled !== false;
+                              const currentVal = isPartActive;
                               if (currentVal !== dragToggleState.targetValue) {
                                 onToggleVisibility(fileIndex, part.id, part.name);
                               }
@@ -763,87 +766,47 @@
                             <div class="submeshes-list">
                               {#each subDetails.subMaterials as sub}
                                 {#if !query || sub.name.toLowerCase().includes(query)}
-                                  <div class="submesh-row">
-                                    <div
-                                      class="submesh-eye-toggle"
-                                      class:active={sub.visible}
-                                      on:mousedown={(e) => {
-                                        e.preventDefault();
-                                        const nextVal = !sub.visible;
-                                        dragToggleState = {
-                                          active: true,
-                                          targetValue: nextVal,
-                                          type: "sub",
-                                          fileIndex,
-                                          parentPartId: part.id,
-                                        };
-                                        sub.visible = nextVal;
-                                        onToggleSubmeshVisibility(
-                                          fileIndex,
-                                          part.id,
-                                          sub.originalIndex,
-                                          nextVal,
-                                        );
-                                      }}
-                                      on:mouseenter={() => {
-                                        if (
-                                          dragToggleState.active &&
-                                          dragToggleState.type === "sub" &&
-                                          dragToggleState.fileIndex === fileIndex &&
-                                          dragToggleState.parentPartId === part.id
-                                        ) {
-                                          if (sub.visible !== dragToggleState.targetValue) {
-                                            sub.visible = dragToggleState.targetValue;
-                                            onToggleSubmeshVisibility(
-                                              fileIndex,
-                                              part.id,
-                                              sub.originalIndex,
-                                              dragToggleState.targetValue,
-                                            );
-                                          }
+                                  <div
+                                    class="submesh-row"
+                                    on:mousedown={(e) => {
+                                      e.preventDefault();
+                                      const nextVal = !sub.visible;
+                                      dragToggleState = {
+                                        active: true,
+                                        targetValue: nextVal,
+                                        type: "sub",
+                                        fileIndex,
+                                        parentPartId: part.id,
+                                      };
+                                      sub.visible = nextVal;
+                                      onToggleSubmeshVisibility(
+                                        fileIndex,
+                                        part.id,
+                                        sub.originalIndex,
+                                        nextVal,
+                                      );
+                                    }}
+                                    on:mouseenter={() => {
+                                      if (
+                                        dragToggleState.active &&
+                                        dragToggleState.type === "sub" &&
+                                        dragToggleState.fileIndex === fileIndex &&
+                                        dragToggleState.parentPartId === part.id
+                                      ) {
+                                        if (sub.visible !== dragToggleState.targetValue) {
+                                          sub.visible = dragToggleState.targetValue;
+                                          onToggleSubmeshVisibility(
+                                            fileIndex,
+                                            part.id,
+                                            sub.originalIndex,
+                                            dragToggleState.targetValue,
+                                          );
                                         }
-                                      }}
-                                    />
-                                    <div
-                                      class="submesh-name"
-                                      class:active={sub.visible}
-                                      on:mousedown={(e) => {
-                                        e.preventDefault();
-                                        const nextVal = !sub.visible;
-                                        dragToggleState = {
-                                          active: true,
-                                          targetValue: nextVal,
-                                          type: "sub",
-                                          fileIndex,
-                                          parentPartId: part.id,
-                                        };
-                                        sub.visible = nextVal;
-                                        onToggleSubmeshVisibility(
-                                          fileIndex,
-                                          part.id,
-                                          sub.originalIndex,
-                                          nextVal,
-                                        );
-                                      }}
-                                      on:mouseenter={() => {
-                                        if (
-                                          dragToggleState.active &&
-                                          dragToggleState.type === "sub" &&
-                                          dragToggleState.fileIndex === fileIndex &&
-                                          dragToggleState.parentPartId === part.id
-                                        ) {
-                                          if (sub.visible !== dragToggleState.targetValue) {
-                                            sub.visible = dragToggleState.targetValue;
-                                            onToggleSubmeshVisibility(
-                                              fileIndex,
-                                              part.id,
-                                              sub.originalIndex,
-                                              dragToggleState.targetValue,
-                                            );
-                                          }
-                                        }
-                                      }}
-                                    >
+                                      }
+                                    }}
+                                  >
+                                    <div class="submesh-eye-toggle" class:active={sub.visible} />
+                                    <div class="submesh-name" class:active={sub.visible}>
                                       {sub.name}
                                     </div>
                                   </div>
@@ -901,6 +864,7 @@
                               )}
                           />
                         {/each}
+                      </div>
                       </div>
                     {/if}
                   {/each}
