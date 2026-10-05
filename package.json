@@ -1,6 +1,6 @@
 {
   "name": "u-v",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Unity 3D Asset Viewer",
   "scripts": {
     "build": "bun run build.ts --minify",
@@ -8,9 +8,9 @@
     "dev": "bun run build.ts --watch"
   },
   "dependencies": {
-    "@babylonjs/core": "^9.9.1",
-    "@babylonjs/serializers": "^9.9.1",
+    "@babylonjs/core": "^9.29.0",
+    "@babylonjs/serializers": "^9.29.0",
     "bun-plugin-svelte": "^0.0.6",
-    "svelte": "^5.55.9"
+    "svelte": "^5.57.1"
   }
 }
