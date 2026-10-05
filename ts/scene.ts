@@ -7,7 +7,6 @@ import { Color4 } from "@babylonjs/core/Maths/math.color";
 export const createScene = (engine: Engine): Scene => {
   const scene = new Scene(engine);
   scene.clearColor = new Color4(0.102, 0.102, 0.141, 1.0);
-  scene.useRightHandedSystem = true;
   const camera = new ArcRotateCamera(
     "defaultCamera",
     Math.PI / 2,
