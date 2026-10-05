@@ -2225,22 +2225,66 @@ export class SceneManager {
         guessedTextureCount
       );
     };
+    const getOwner = (renderer: RendererRecord) => {
+      let goId = String(renderer.m_GameObject?.path_id || "");
+      let transform = lookup.transformsByGo.get(goId);
+      while (transform && !state.animatorsByGameObjectId.has(goId)) {
+        const fatherId = String(
+          (transform.m_Father as Record<string, JSONValue> | undefined)
+            ?.path_id || "0",
+        );
+        const father = lookup.transforms.get(fatherId);
+        if (fatherId === "0" || !father) break;
+        transform = father;
+        goId = String(
+          (father.m_GameObject as Record<string, JSONValue> | undefined)
+            ?.path_id || "",
+        );
+      }
+      return { id: goId, name: String(lookup.gameObjects.get(goId)?.name || "") };
+    };
+    const renderers = objects
+      .map((obj) => ({
+        renderer: (obj?.SkinnedMeshRenderer || obj?.MeshRenderer) as
+          | RendererRecord
+          | undefined,
+        isSkinned: !!obj?.SkinnedMeshRenderer,
+      }))
+      .filter(
+        (r): r is { renderer: RendererRecord; isSkinned: boolean } =>
+          !!r.renderer,
+      )
+      .map((r) => ({ ...r, owner: getOwner(r.renderer) }));
+    const ownerKey = (r: (typeof renderers)[number]) =>
+      `${r.owner.name}_${r.renderer.sourceFileName || "default"}`;
+    const canonicalOwnerByName = new Map<string, string>();
+    renderers.forEach((r) => {
+      if (r.isSkinned && !canonicalOwnerByName.has(ownerKey(r)))
+        canonicalOwnerByName.set(ownerKey(r), r.owner.id);
+    });
+    renderers.forEach((r) => {
+      if (!canonicalOwnerByName.has(ownerKey(r)))
+        canonicalOwnerByName.set(ownerKey(r), r.owner.id);
+    });
     const bestRendererByMeshName = new Map<
       string,
-      { renderer: RendererRecord; textureCount: number }
+      { renderer: RendererRecord; textureCount: number; isCanonical: boolean }
     >();
-    objects.forEach((obj) => {
-      const renderer = (obj?.SkinnedMeshRenderer || obj?.MeshRenderer) as
-        | RendererRecord
-        | undefined;
-      if (!renderer) return;
+    renderers.forEach((r) => {
+      const { renderer } = r;
       const name =
         renderer.name || renderer.mesh?.name || `part_${renderer.path_id}`;
-      const key = `${name}_${renderer.sourceFileName || "default"}`;
+      const key = `${r.owner.name}/${name}_${renderer.sourceFileName || "default"}`;
       const textureCount = getRendererTextureScore(renderer);
+      const isCanonical = canonicalOwnerByName.get(ownerKey(r)) === r.owner.id;
       const current = bestRendererByMeshName.get(key);
-      if (!current || textureCount > current.textureCount) {
-        bestRendererByMeshName.set(key, { renderer, textureCount });
+      if (
+        !current ||
+        (isCanonical && !current.isCanonical) ||
+        (isCanonical === current.isCanonical &&
+          textureCount > current.textureCount)
+      ) {
+        bestRendererByMeshName.set(key, { renderer, textureCount, isCanonical });
       }
     });
     const uniqueRenderers = Array.from(bestRendererByMeshName.values())
