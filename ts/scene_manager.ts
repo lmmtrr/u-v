@@ -763,9 +763,6 @@ export class SceneManager {
         }
       });
     }
-    if (transformNodes.size === 0) {
-      sceneRoot.rotation.x = -Math.PI / 2;
-    }
     processOrphanedMeshes(objects, lookup as never);
     resolveRendererTextures(objects, lookup as never);
     const { uniqueRenderers, meshBestRendererMap } =
