@@ -5,17 +5,17 @@
     "": {
       "name": "assettool-viewer",
       "dependencies": {
-        "@babylonjs/core": "^9.30.0",
-        "@babylonjs/serializers": "^9.30.0",
+        "@babylonjs/core": "^9.31.0",
+        "@babylonjs/serializers": "^9.31.0",
         "bun-plugin-svelte": "^0.0.6",
         "svelte": "^5.57.2",
       },
     },
   },
   "packages": {
-    "@babylonjs/core": ["@babylonjs/core@9.30.0", "", {}, "sha512-rV+kc7B9oEtREaWh0YYNinoqYshRbHLHj7t4s4woDjDXFXWKHu1d8S914CNfs3KTOI8V8DvoVKLe2yDHZXfZEA=="],
+    "@babylonjs/core": ["@babylonjs/core@9.31.0", "", {}, "sha512-CqtzNFa6BrL2Wv/AoB3BoMZaAFh+52I+xY8c5a7v+/sh/T5lXJHqLTdvSXMONeLYJUTV6sHJUCT7nwSzMDrSsQ=="],
 
-    "@babylonjs/serializers": ["@babylonjs/serializers@9.30.0", "", { "peerDependencies": { "@babylonjs/core": "^9.0.0", "babylonjs-gltf2interface": "^9.0.0" } }, "sha512-8vXF0FqUAItznbk4KEoq5b//gwUDTNrHAkdRjofhhdGEo7UtV5kt+EpcMXB2NTH2belQk/vVOhmlX3i03qKbAQ=="],
+    "@babylonjs/serializers": ["@babylonjs/serializers@9.31.0", "", { "peerDependencies": { "@babylonjs/core": "^9.0.0", "babylonjs-gltf2interface": "^9.0.0" } }, "sha512-RDAwIwOLz93x1rhsqjIYGFA99dRN1t1ttpKDz8az8ab16odxS1vkfGBrR/FQx6zJIU0qgCLha4Sr8cUiePVogQ=="],
 
     "@jridgewell/gen-mapping": ["@jridgewell/gen-mapping@0.3.13", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.0", "@jridgewell/trace-mapping": "^0.3.24" } }, "sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA=="],
 
