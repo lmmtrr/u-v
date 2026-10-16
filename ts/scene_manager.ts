@@ -46,6 +46,14 @@ import { instantiateMesh, getRelativeMatrix } from "./mesh_builder";
 import { findRoot, computeGenericPartAttachments } from "./bone_system";
 import { buildExternalRefIndex, type ExternalRefIndex } from "./external_refs";
 import { normalizeLoadedFileIds, getRawPathId } from "./id_space";
+import { buildUnrealMeshes } from "./ue_scene";
+import { buildUnrealSpringBones } from "./ue_physics";
+import {
+  buildUnrealAnimationData,
+  isUnrealClip,
+  resetUnrealPose,
+  unrealAnimationClips,
+} from "./ue_animation";
 const EXPORT_EMISSIVE = 0;
 type Lookup = {
   gameObjects: Map<string, Record<string, JSONValue>>;
@@ -584,6 +592,7 @@ export class SceneManager {
         }
       }
     });
+    resetUnrealPose(state.createdMeshes);
   };
   public stopAnimation = () => {
     state.currentAnimationData = null;
@@ -595,13 +604,43 @@ export class SceneManager {
       animationPlaying: false,
     });
   };
+  private playUnrealAnimation = async (idx: number, clipData: Parameters<typeof buildUnrealAnimationData>[0]) => {
+    this.unrealAnimationRequest = idx;
+    let data;
+    try {
+      data = await buildUnrealAnimationData(clipData, state.createdMeshes);
+    } catch (err) {
+      showNotification(
+        `Failed to load animation ${clipData.UnrealAnimation.name}: ${err instanceof Error ? err.message : String(err)}`,
+        "error",
+      );
+      return;
+    }
+    if (this.unrealAnimationRequest !== idx) return;
+    state.currentAnimationData = data;
+    state.currentAnimationData.startTime = performance.now();
+    state.animationPlaying = true;
+    updateUIState({
+      currentAnimationIndex: idx,
+      currentAnimationData: state.currentAnimationData,
+      animationPlaying: state.animationPlaying,
+    });
+  };
+  private unrealAnimationRequest = -1;
   public playAnimation = (idx: number) => {
     if (idx === -1) {
+      this.unrealAnimationRequest = -1;
       this.stopAnimation();
       return;
     }
     if (!state.animationClips[idx]) return;
     this.resetToBindPose();
+    const clipData = state.animationClips[idx].clipData;
+    if (isUnrealClip(clipData)) {
+      this.playUnrealAnimation(idx, clipData);
+      return;
+    }
+    this.unrealAnimationRequest = -1;
     state.currentAnimationData = buildAnimationData(
       state.animationClips[idx] as never as UnityObject,
       state.allObjectHash,
@@ -817,9 +856,19 @@ export class SceneManager {
       meshBestRendererMap,
       sceneRoot,
     );
-    state.createdMeshes = createdMeshes;
+    const unrealMeshes = buildUnrealMeshes(this.scene, state.loadedFiles);
+    state.createdMeshes = [...createdMeshes, ...unrealMeshes];
     state.genericPartAttachments = computeGenericPartAttachments(skeletons);
     if (state.showSkeletons) {
+      unrealMeshes.forEach((mesh) => {
+        if (!mesh.skeleton) return;
+        state.skeletonViewers.push(
+          new SkeletonViewer(mesh.skeleton, mesh, this.scene, true, 3, {
+            displayMode: SkeletonViewer.DISPLAY_LINES,
+            displayOptions: { color: new Color3(1, 0, 0) } as never,
+          }),
+        );
+      });
       skeletons.forEach((data) => {
         const targetMesh =
           this.scene.meshes.find((m) => m.skeleton === data.skeleton) ||
@@ -839,8 +888,10 @@ export class SceneManager {
       });
     }
     lookup.animationClips.sort(createSorter((a) => a.name));
-    state.animationClips =
-      lookup.animationClips as never as AnimationClipItem[];
+    state.animationClips = [
+      ...(lookup.animationClips as never as AnimationClipItem[]),
+      ...(unrealAnimationClips(state.loadedFiles) as never as AnimationClipItem[]),
+    ];
     if (state.animationClips.length > 0) {
       if (!skipUIUpdate) {
         state.animationDropdown = createAnimationUI(
@@ -862,12 +913,10 @@ export class SceneManager {
         });
       }
     }
-    const physicsEntries = setupSpringBones(
-      objects,
-      transformNodes,
-      skeletons as never,
-      lookup.transformsByGo as never,
-    );
+    const physicsEntries = [
+      ...setupSpringBones(objects, transformNodes, skeletons as never, lookup.transformsByGo as never),
+      ...buildUnrealSpringBones(unrealMeshes),
+    ];
     if (physicsEntries.length > 0) {
       state.physicsObserver = createPhysicsObserver(this.scene, physicsEntries);
     }
@@ -1215,6 +1264,7 @@ export class SceneManager {
       this.alignSkinRootsForExport(exportRestores);
       this.prepareMaterialsForExport(exportRestores);
       this.prepareMeshDataForExport(exportRestores);
+      this.flipFrontCulledSubMeshesForExport(exportRestores);
       this.consolidateSubMeshesForExport(exportRestores);
       updateProgress(70, "Serializing scene meshes...");
       const glbData = await GLTF2Export.GLBAsync(this.scene, exportName, {
@@ -1461,6 +1511,38 @@ export class SceneManager {
       });
     });
   }
+  private flipFrontCulledSubMeshesForExport(restores: Array<() => void>): void {
+    const seen = new Set<unknown>();
+    this.scene.meshes.forEach((node) => {
+      const mesh = node as Mesh;
+      if (!mesh.geometry || !mesh.subMeshes || seen.has(mesh.geometry)) return;
+      const material = mesh.material;
+      const frontCulled = mesh.subMeshes.filter((sub) => {
+        const m =
+          material instanceof MultiMaterial
+            ? material.subMaterials[sub.materialIndex]
+            : material;
+        return !!m && m.backFaceCulling && m.cullBackFaces === false;
+      });
+      if (frontCulled.length === 0) return;
+      seen.add(mesh.geometry);
+      const geometry = mesh.geometry as unknown as { _indices: IndicesArray };
+      const original = geometry._indices;
+      const flipped = original.slice();
+      frontCulled.forEach((sub) => {
+        const end = sub.indexStart + sub.indexCount;
+        for (let i = sub.indexStart; i + 2 < end; i += 3) {
+          const b = flipped[i + 1];
+          flipped[i + 1] = flipped[i + 2];
+          flipped[i + 2] = b;
+        }
+      });
+      geometry._indices = flipped;
+      restores.push(() => {
+        if (geometry._indices === flipped) geometry._indices = original;
+      });
+    });
+  }
   private consolidateSubMeshesForExport(restores: Array<() => void>): void {
     this.scene.meshes.forEach((node) => {
       const mesh = node as Mesh;
@@ -1522,6 +1604,7 @@ export class SceneManager {
     normalizeLoadedFileIds(state.loadedFiles);
     const objects: UnityObject[] = [];
     state.loadedFiles.forEach((f) => {
+      if (f.unreal) return;
       f.objects.forEach((obj) => {
         if (!obj) return;
         const type = Object.keys(obj)[0];

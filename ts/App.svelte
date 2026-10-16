@@ -1,7 +1,10 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { MultiMaterial } from "@babylonjs/core/Materials/multiMaterial";
+  import type { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
+  import type { SubMesh } from "@babylonjs/core/Meshes/subMesh";
   import type { LoadedFile, AnimationData, UnityObject } from "./types";
+  import { collectDroppedFiles } from "./drop_files";
   import { state } from "./state";
   export let loadedFiles: LoadedFile[] = [];
   export let animationClips: Array<{ name: string }> = [];
@@ -22,7 +25,7 @@
   export let onToggleSubmeshVisibility: (fileIndex: number, partId: string, submeshIndex: number, visible: boolean) => void = () => {};
   export let onUpdateMorphTargetWeight: (partId: string, targetIndex: number, weight: number) => void = () => {};
   export let onPlayAnimation: (index: number) => void = () => {};
-  export let onFilesDropped: (files: FileList) => void = () => {};
+  export let onFilesDropped: (files: FileList | File[]) => void = () => {};
   export function updateProps(newProps: Record<string, unknown>) {
     if (newProps.loadedFiles !== undefined) loadedFiles = newProps.loadedFiles as LoadedFile[];
     if (newProps.animationClips !== undefined) animationClips = newProps.animationClips as Array<{ name: string }>;
@@ -43,7 +46,7 @@
     if (newProps.onToggleSubmeshVisibility !== undefined) onToggleSubmeshVisibility = newProps.onToggleSubmeshVisibility as (fileIndex: number, partId: string, submeshIndex: number, visible: boolean) => void;
     if (newProps.onUpdateMorphTargetWeight !== undefined) onUpdateMorphTargetWeight = newProps.onUpdateMorphTargetWeight as (partId: string, targetIndex: number, weight: number) => void;
     if (newProps.onPlayAnimation !== undefined) onPlayAnimation = newProps.onPlayAnimation as (index: number) => void;
-    if (newProps.onFilesDropped !== undefined) onFilesDropped = newProps.onFilesDropped as (files: FileList) => void;
+    if (newProps.onFilesDropped !== undefined) onFilesDropped = newProps.onFilesDropped as (files: FileList | File[]) => void;
   }
   let showDroparea = false;
   let notifications: Array<{ id: number; message: string; type: string }> = [];
@@ -102,13 +105,17 @@
         (obj: UnityObject) => obj.SpringBone || obj.DynamicBone,
       ),
   );
-  $: hasDynamicBone = loadedFiles.some(
-    (file) =>
-      !file.removedFromUI &&
-      file.objects.some(
-        (obj: UnityObject) => !!obj.DynamicBone,
-      ),
-  );
+  $: physicsLabel = (() => {
+    const kinds = new Set<string>();
+    loadedFiles.forEach((file) => {
+      if (file.removedFromUI) return;
+      file.objects.forEach((obj: UnityObject) => {
+        if (obj.DynamicBone) kinds.add("DynamicBone");
+        else if (obj.SpringBone) kinds.add(file.unreal ? "Physics" : "SpringBone");
+      });
+    });
+    return kinds.size === 1 ? `Enable ${[...kinds][0]}` : "Enable Physics";
+  })();
   export function showNotification(message: string, type = "error", duration = 5000) {
     const id = nextNotificationId++;
     notifications = [...notifications, { id, message, type }];
@@ -188,7 +195,7 @@
       (m) => m.metadata && String(m.metadata.rendererPathId) === String(partId),
     );
     if (!babylonMesh) return { subMaterials: [], morphTargets: [], hasDetails: false };
-    const originalSubMeshes = babylonMesh.metadata.originalSubMeshes || babylonMesh.subMeshes || [];
+    const originalSubMeshes: SubMesh[] = babylonMesh.metadata.originalSubMeshes || babylonMesh.subMeshes || [];
     const subMaterials = originalSubMeshes.map((subMesh, subIndex) => {
       const isSubVisible = babylonMesh.subMeshes.includes(subMesh);
       const friendlyName = (subMesh as any).friendlyName;
@@ -196,8 +203,9 @@
       if (babylonMesh.material instanceof MultiMaterial) {
         const subMat = babylonMesh.material.subMaterials[subMesh.materialIndex];
         if (subMat) {
-          const matName = subMat.diffuseTexture
-            ? subMat.diffuseTexture.name || `Texture ${subMesh.materialIndex + 1}`
+          const diffuse = (subMat as StandardMaterial).diffuseTexture;
+          const matName = diffuse
+            ? diffuse.name || `Texture ${subMesh.materialIndex + 1}`
             : subMat.name || `Submesh ${subIndex + 1}`;
           name = friendlyName ? `${friendlyName} (${matName})` : matName;
         }
@@ -205,11 +213,12 @@
       return { originalIndex: subIndex, name, visible: isSubVisible, subMesh };
     });
     subMaterials.sort((a, b) => a.name.localeCompare(b.name));
-    const morphTargets = babylonMesh.morphTargetManager
+    const morphManager = babylonMesh.morphTargetManager;
+    const morphTargets = morphManager
       ? Array.from(
-          { length: babylonMesh.morphTargetManager.numTargets },
+          { length: morphManager.numTargets },
           (_, i) => {
-            const target = babylonMesh.morphTargetManager.getTarget(i);
+            const target = morphManager.getTarget(i);
             return { name: target.name, influence: target.influence, target };
           },
         )
@@ -252,8 +261,8 @@
   function handleDrop(e: DragEvent) {
     e.preventDefault();
     showDroparea = false;
-    if (e.dataTransfer && e.dataTransfer.files) {
-      onFilesDropped(e.dataTransfer.files);
+    if (e.dataTransfer) {
+      collectDroppedFiles(e.dataTransfer).then((files) => onFilesDropped(files));
     }
   }
   function playAnimationAtIndex(index: number) {
@@ -558,7 +567,7 @@
             }}
           />
           <label for="physics-toggle" style="cursor: pointer; user-select: none;">
-            {hasDynamicBone ? "Enable DynamicBone" : "Enable SpringBone"}
+            {physicsLabel}
           </label>
         </div>
       {/if}
@@ -832,13 +841,11 @@
                                       min="0"
                                       max="1"
                                       step="0.01"
-                                      bind:value={morph.influence}
-                                      on:input={() => {
-                                        onUpdateMorphTargetWeight(
-                                          part.id,
-                                          morphIdx,
-                                          morph.influence,
-                                        );
+                                      value={morph.influence}
+                                      on:input={(e) => {
+                                        const weight = Number(e.currentTarget.value);
+                                        onUpdateMorphTargetWeight(part.id, morphIdx, weight);
+                                        morph.influence = weight;
                                       }}
                                     />
                                   </div>
@@ -850,7 +857,7 @@
                       {/if}
                       <div class="translation-controls">
                         <div class="translation-label">Pos</div>
-                        {#each ["x", "y", "z"] as axis}
+                        {#each ["x", "y", "z"] as const as axis}
                           <input
                             type="number"
                             class="translation-input"

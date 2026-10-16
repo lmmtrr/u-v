@@ -1,8 +1,10 @@
-import type { MeshRequest, MeshResponse, PathId, JSONValue, UnityObject, AssetInfo } from "./types";
+import type { MeshResponse, PathId, JSONValue, UnityObject, AssetInfo, UnrealMesh, UnrealSocket, UnrealTexture, UnrealAnimationEntry, UnrealAnimationSamples } from "./types";
 type WorkerResponsePayload =
   | void
   | MeshResponse
   | { raw: Uint8Array | null }
+  | UnrealLoadResult
+  | UnrealAnimationSamples
   | {
       fileIndex: number;
       name: string;
@@ -10,6 +12,15 @@ type WorkerResponsePayload =
       hash: Record<string, string>;
       assetInfo: AssetInfo | null;
     };
+export interface UnrealLoadResult {
+  envId: number;
+  meshes: UnrealMesh[];
+  sockets: UnrealSocket[];
+  textures: UnrealTexture[];
+  animations: UnrealAnimationEntry[];
+  errors: string[];
+  needsMappings: boolean;
+}
 class WorkerClient {
   private worker: Worker;
   private pendingRequests: Map<
@@ -78,6 +89,18 @@ class WorkerClient {
        assetInfo: AssetInfo | null;
      }>("LOAD_FILE", { arrayBuffer, name } as never as JSONValue, [arrayBuffer]);
    }
+  async loadUnrealFiles(
+    files: Array<{ path: string; arrayBuffer: ArrayBuffer }>,
+  ): Promise<UnrealLoadResult> {
+    return this.request<UnrealLoadResult>(
+      "LOAD_UNREAL_FILES",
+      { files } as never as JSONValue,
+      files.map((f) => f.arrayBuffer),
+    );
+  }
+  async loadUnrealAnimation(envId: number, path: string): Promise<UnrealAnimationSamples> {
+    return this.request<UnrealAnimationSamples>("LOAD_UNREAL_ANIMATION", { envId, path });
+  }
   async getMeshData(
     fileIndex: number,
     pathId: PathId,

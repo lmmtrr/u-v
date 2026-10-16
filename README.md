@@ -2,7 +2,12 @@
 
 [https://u-v.pages.dev/](https://u-v.pages.dev/)
 
-An interactive browser-based Unity 3D model viewer.
+An interactive browser-based Unity & Unreal Engine 3D model viewer.
+
+## Supported Files
+
+- **Unity**: AssetBundles and serialized files (powered by [unityfs](https://crates.io/crates/unityfs))
+- **Unreal Engine**: `.uasset` / `.uexp` / `.ubulk` packages, with optional `.usmap` mappings (powered by [unrealfs](https://crates.io/crates/unrealfs))
 
 ## Controls & Keyboard Shortcuts
 
@@ -63,4 +68,4 @@ http://localhost:8000/
 
 ## License
 
-[MIT License](https://github.com/lmmtrr/unityfs/blob/main/LICENSE)
+[MIT License](https://github.com/lmmtrr/u-v/blob/main/LICENSE)

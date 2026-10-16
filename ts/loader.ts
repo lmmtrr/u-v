@@ -2,6 +2,7 @@ import { workerClient } from "./worker_client";
 import { updateProgress, hideProgress } from "./progress";
 import { showNotification, showSplash } from "./ui";
 import type { AssetInfo, LoadedFile, ViewerState, UnityObject } from "./types";
+import { isUnrealFile, loadUnrealFiles } from "./ue_loader";
 const readFileAsArrayBuffer = (
   file: File,
   onProgress?: (percent: number) => void,
@@ -27,11 +28,21 @@ export const loadFiles = async (
 ): Promise<void> => {
   window._animationPlayed = false;
   if (!files || files.length === 0) return;
+  const unrealFiles = Array.from(files).filter((f) => isUnrealFile(f.name));
+  const unityFiles = Array.from(files).filter((f) => !isUnrealFile(f.name));
   updateProgress(5, "Loading Files...", "Starting queue import");
-  const totalFiles = files.length;
-  let filesCompleted = 0;
   let skipOnComplete = false;
-  const loadPromises = Array.from(files).map(async (file) => {
+  if (unrealFiles.length > 0) {
+    const loaded = await loadUnrealFiles(unrealFiles, state);
+    if (!loaded && unityFiles.length === 0) {
+      showSplash();
+      hideProgress();
+      return;
+    }
+  }
+  const totalFiles = unityFiles.length;
+  let filesCompleted = 0;
+  const loadPromises = unityFiles.map(async (file) => {
     try {
       const arrayBuf = await readFileAsArrayBuffer(file, (percent) => {
         const overallPercent =

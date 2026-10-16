@@ -1192,7 +1192,8 @@
   margin: 0;
 }
 
-#text-file {
+#text-file,
+#text-folder {
   color: var(--accent-color);
   font-weight: 600;
   border-bottom: 1.5px solid rgba(0, 229, 255, 0.3);
@@ -1201,7 +1202,8 @@
   cursor: pointer;
 }
 
-#text-file:hover {
+#text-file:hover,
+#text-folder:hover {
   color: #fff;
   border-bottom-color: #fff;
   text-shadow: 0 0 8px rgba(255, 255, 255, 0.5);

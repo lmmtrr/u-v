@@ -44,7 +44,7 @@ let savedProps = {
     weight: number,
   ) => {},
   onPlayAnimation: (index: number) => {},
-  onFilesDropped: (files: FileList) => {},
+  onFilesDropped: (files: FileList | File[]) => {},
 };
 const ensureApp = () => {
   if (!app) {
@@ -110,7 +110,7 @@ export const updateUIState = (newProps: Partial<typeof savedProps>) => {
   updateApp(newProps);
 };
 export const setupDropzone = (
-  onFilesDropped: (files: FileList) => void,
+  onFilesDropped: (files: FileList | File[]) => void,
 ): HTMLDivElement => {
   updateApp({ onFilesDropped });
   return null as never as HTMLDivElement;
@@ -118,29 +118,34 @@ export const setupDropzone = (
 export const setupFileInput = (
   onFilesSelected: (files: FileList) => void,
 ): HTMLInputElement => {
-  let fileInput = document.getElementById(
-    "file-upload-input",
-  ) as HTMLInputElement | null;
-  if (!fileInput) {
-    fileInput = document.createElement("input");
-    fileInput.type = "file";
-    fileInput.id = "file-upload-input";
-    fileInput.multiple = true;
-    fileInput.style.display = "none";
-    fileInput.onchange = (e: Event) =>
-      onFilesSelected((e.target as HTMLInputElement).files!);
-    document.body.appendChild(fileInput!);
-  }
-  const textFile = document.getElementById("text-file");
-  if (textFile) {
-    textFile.addEventListener("click", (e) => {
+  const createInput = (id: string, directory: boolean): HTMLInputElement => {
+    let input = document.getElementById(id) as HTMLInputElement | null;
+    if (!input) {
+      input = document.createElement("input");
+      input.type = "file";
+      input.id = id;
+      input.multiple = true;
+      input.webkitdirectory = directory;
+      input.style.display = "none";
+      input.onchange = (e: Event) =>
+        onFilesSelected((e.target as HTMLInputElement).files!);
+      document.body.appendChild(input);
+    }
+    return input;
+  };
+  const fileInput = createInput("file-upload-input", false);
+  const folderInput = createInput("folder-upload-input", true);
+  const bindClick = (id: string, input: HTMLInputElement) => {
+    document.getElementById(id)?.addEventListener("click", (e) => {
       e.stopPropagation();
-      fileInput!.click();
+      input.click();
     });
-  }
+  };
+  bindClick("text-file", fileInput);
+  bindClick("text-folder", folderInput);
   const uploadZone = document.getElementById("upload-zone");
   if (uploadZone) {
-    uploadZone.addEventListener("click", () => fileInput!.click());
+    uploadZone.addEventListener("click", () => fileInput.click());
   }
   const splash = document.getElementById("splash");
   if (splash) {
@@ -153,7 +158,7 @@ export const setupFileInput = (
       }
     });
   }
-  return fileInput!;
+  return fileInput;
 };
 export const createAnimationUI = (
   advancedTexture: object | null,
