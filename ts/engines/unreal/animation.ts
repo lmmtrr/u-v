@@ -1,15 +1,10 @@
 import type { Mesh } from "@babylonjs/core/Meshes/mesh";
 import type { MorphTarget } from "@babylonjs/core/Morph/morphTarget";
 import type { TransformNode } from "@babylonjs/core/Meshes/transformNode";
-import { workerClient } from "./worker_client";
-import type {
-  AnimationBoneData,
-  AnimationCurveKey,
-  AnimationData,
-  LoadedFile,
-  UnrealAnimationEntry,
-  UnrealAnimationSamples,
-} from "./types";
+import { unrealWorker } from "./worker_api";
+import type { AnimationBoneData, AnimationCurveKey, AnimationData, AnimationClipItem, LoadedFile, UnityObject } from "../../types";
+import { unrealData } from "./file_data";
+import type { UnrealAnimationEntry, UnrealAnimationSamples } from "./types";
 
 type ClipRef = UnrealAnimationEntry & { envId: number };
 
@@ -19,17 +14,12 @@ export interface UnrealClipData {
   };
 }
 
-export const isUnrealClip = (clipData: unknown): clipData is UnrealClipData =>
-  !!clipData && typeof clipData === "object" && "UnrealAnimation" in clipData;
-
-export const unrealAnimationClips = (
-  files: LoadedFile[],
-): Array<{ name: string; clipData: UnrealClipData }> =>
+export const unrealAnimationClips = (files: LoadedFile[], engine: string): AnimationClipItem[] =>
   files
-    .filter((f) => !f.removedFromUI && f.unrealEnvId !== undefined)
+    .filter((f) => !f.removedFromUI && unrealData(f))
     .flatMap((f) => {
-      const envId = f.unrealEnvId!;
-      const anims = (f.unrealAnimations ?? []).map((a) => ({ ...a, envId }));
+      const { envId, animations } = unrealData(f)!;
+      const anims = animations.map((a) => ({ ...a, envId }));
       const skeletonUse = new Map<string, number>();
       anims.forEach((a) => skeletonUse.set(a.skeleton ?? "", (skeletonUse.get(a.skeleton ?? "") ?? 0) + 1));
       const groups = new Map<string, ClipRef[]>();
@@ -39,9 +29,11 @@ export const unrealAnimationClips = (
           (x, y) => (skeletonUse.get(y.skeleton ?? "") ?? 0) - (skeletonUse.get(x.skeleton ?? "") ?? 0),
         );
         const label = main.hasBoneTracks || companions.length > 0 ? main.name : `${main.name} (curves)`;
+        const clipData: UnrealClipData = { UnrealAnimation: { ...main, companions } };
         return {
           name: main.additive ? `${label} (additive)` : label,
-          clipData: { UnrealAnimation: { ...main, companions } },
+          engine,
+          clipData: clipData as never as UnityObject,
         };
       });
     });
@@ -52,7 +44,7 @@ const loadSamples = (clip: ClipRef) => {
   const key = `${clip.envId}|${clip.path}`;
   let pending = sampleCache.get(key);
   if (!pending) {
-    pending = workerClient.loadUnrealAnimation(clip.envId, clip.path);
+    pending = unrealWorker.loadAnimation(clip.envId, clip.path);
     pending.catch(() => sampleCache.delete(key));
     sampleCache.set(key, pending);
   }

@@ -9,13 +9,10 @@ import type {
   ViewerState,
   AnimationData,
   UnityObject,
+  AnimationClipItem,
 } from "./types";
 import type { GenericPartAttachment } from "./bone_system";
 export interface LoadedFile extends LoadedFileType {}
-export interface AnimationClipItem {
-  name: string;
-  clipData: UnityObject;
-}
 export const state: ViewerState = {
   loadedFiles: [] as LoadedFile[],
   allObjects: [] as UnityObject[],

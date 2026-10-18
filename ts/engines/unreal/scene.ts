@@ -13,10 +13,12 @@ import { MorphTargetManager } from "@babylonjs/core/Morph/morphTargetManager";
 import { MorphTarget } from "@babylonjs/core/Morph/morphTarget";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
-import { rgbaToDataURL } from "./renderer_utils";
-import { rememberUnrealRestPose } from "./ue_animation";
-import type { JSONValue, LoadedFile, UnrealMesh, UnrealSocket, UnrealTexture } from "./types";
-import { state } from "./state";
+import { rgbaToDataURL } from "../../renderer_utils";
+import { rememberUnrealRestPose } from "./animation";
+import type { JSONValue, LoadedFile } from "../../types";
+import type { UnrealMesh, UnrealSocket, UnrealTexture } from "./types";
+import { unrealData } from "./file_data";
+import { state } from "../../state";
 
 const createSkeleton = (data: UnrealMesh, scene: Scene): Skeleton => {
   const skeleton = new Skeleton(`${data.name}_skeleton`, data.id, scene);
@@ -59,7 +61,7 @@ const hasTranslucentPixels = (pixels: Uint8Array): boolean => {
 
 const createTextureLookup = (scene: Scene, files: LoadedFile[]): TextureLookup => {
   const sources = new Map<string, UnrealTexture>();
-  files.forEach((f) => f.unrealTextures?.forEach((t) => sources.set(t.path, t)));
+  files.forEach((f) => unrealData(f)?.textures.forEach((t) => sources.set(t.path, t)));
   const created = new Map<string, Texture>();
   return (path) => {
     if (!path) return null;
@@ -286,10 +288,10 @@ export const buildUnrealMeshes = (scene: Scene, files: LoadedFile[]): Mesh[] => 
   const built: BuiltMesh[] = [];
   const looseSockets: UnrealSocket[] = [];
   files.forEach((file) => {
-    if (file.removedFromUI) return;
-    looseSockets.push(...(file.unrealSockets ?? []));
-    if (!file.unreal || file.removedFromUI) return;
-    file.unreal.forEach((data) => {
+    const ue = unrealData(file);
+    if (!ue || file.removedFromUI) return;
+    looseSockets.push(...ue.sockets);
+    ue.meshes.forEach((data) => {
       const part = file.objects
         .map((obj) => (obj?.SkinnedMeshRenderer ?? obj?.MeshRenderer) as Record<string, JSONValue> | undefined)
         .find((r) => r && (r.raw_path_id ?? r.path_id) === data.id);
@@ -301,7 +303,7 @@ export const buildUnrealMeshes = (scene: Scene, files: LoadedFile[]): Mesh[] => 
     });
   });
   const animatedSkeletons = new Set(
-    files.flatMap((f) => (f.removedFromUI ? [] : (f.unrealAnimations ?? []).map((a) => a.skeleton ?? ""))),
+    files.flatMap((f) => (f.removedFromUI ? [] : (unrealData(f)?.animations ?? []).map((a) => a.skeleton ?? ""))),
   );
   attachToSockets(built, looseSockets, animatedSkeletons);
   built.forEach(({ data, mesh }) => {

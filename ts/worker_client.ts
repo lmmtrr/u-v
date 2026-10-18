@@ -1,31 +1,9 @@
-import type { MeshResponse, PathId, JSONValue, UnityObject, AssetInfo, UnrealMesh, UnrealSocket, UnrealTexture, UnrealAnimationEntry, UnrealAnimationSamples } from "./types";
-type WorkerResponsePayload =
-  | void
-  | MeshResponse
-  | { raw: Uint8Array | null }
-  | UnrealLoadResult
-  | UnrealAnimationSamples
-  | {
-      fileIndex: number;
-      name: string;
-      objects: UnityObject[];
-      hash: Record<string, string>;
-      assetInfo: AssetInfo | null;
-    };
-export interface UnrealLoadResult {
-  envId: number;
-  meshes: UnrealMesh[];
-  sockets: UnrealSocket[];
-  textures: UnrealTexture[];
-  animations: UnrealAnimationEntry[];
-  errors: string[];
-  needsMappings: boolean;
-}
+import type { JSONValue } from "./types";
 class WorkerClient {
   private worker: Worker;
   private pendingRequests: Map<
     number,
-    { resolve: (val: WorkerResponsePayload) => void; reject: (err: Error) => void }
+    { resolve: (val: unknown) => void; reject: (err: Error) => void }
   >;
   private requestIdCounter: number;
   constructor() {
@@ -36,7 +14,7 @@ class WorkerClient {
       const { type, id, payload, error } = event.data as {
         type: string;
         id: number;
-        payload?: WorkerResponsePayload;
+        payload?: unknown;
         error?: string;
       };
       if (!this.pendingRequests.has(id)) {
@@ -47,14 +25,14 @@ class WorkerClient {
       if (type === "ERROR" || error) {
         reject(new Error(error || "Worker error occurred."));
       } else {
-        resolve(payload as WorkerResponsePayload);
+        resolve(payload);
       }
     };
     this.worker.onerror = (error: ErrorEvent) => {
       console.error("Worker error:", error);
     };
   }
-  request<T extends WorkerResponsePayload>(
+  request<T>(
     type: string,
     payload: JSONValue = {},
     transferables: Transferable[] = [],
@@ -62,7 +40,7 @@ class WorkerClient {
     const id = ++this.requestIdCounter;
     return new Promise<T>((resolve, reject) => {
       this.pendingRequests.set(id, {
-        resolve: resolve as (val: WorkerResponsePayload) => void,
+        resolve: resolve as (val: unknown) => void,
         reject,
       });
       this.worker.postMessage({ type, id, payload }, transferables);
@@ -70,57 +48,6 @@ class WorkerClient {
   }
   async init(): Promise<void> {
     return this.request<void>("INIT");
-  }
-   async loadFile(
-     arrayBuffer: ArrayBuffer,
-     name: string,
-   ): Promise<{
-     fileIndex: number;
-     name: string;
-     objects: UnityObject[];
-     hash: Record<string, string>;
-     assetInfo: AssetInfo | null;
-   }> {
-     return this.request<{
-       fileIndex: number;
-       name: string;
-       objects: UnityObject[];
-       hash: Record<string, string>;
-       assetInfo: AssetInfo | null;
-     }>("LOAD_FILE", { arrayBuffer, name } as never as JSONValue, [arrayBuffer]);
-   }
-  async loadUnrealFiles(
-    files: Array<{ path: string; arrayBuffer: ArrayBuffer }>,
-  ): Promise<UnrealLoadResult> {
-    return this.request<UnrealLoadResult>(
-      "LOAD_UNREAL_FILES",
-      { files } as never as JSONValue,
-      files.map((f) => f.arrayBuffer),
-    );
-  }
-  async loadUnrealAnimation(envId: number, path: string): Promise<UnrealAnimationSamples> {
-    return this.request<UnrealAnimationSamples>("LOAD_UNREAL_ANIMATION", { envId, path });
-  }
-  async getMeshData(
-    fileIndex: number,
-    pathId: PathId,
-    sourceFileName: string,
-    matrix: Float32Array | number[] | null = null,
-    normalMatrix: Float32Array | number[] | null = null,
-  ): Promise<MeshResponse> {
-    const payload = { fileIndex, pathId, sourceFileName, matrix, normalMatrix };
-    return this.request<MeshResponse>("GET_MESH_DATA", payload as never as JSONValue);
-  }
-  async getTextureData(
-    fileIndex: number,
-    pathId: PathId,
-    sourceFileName: string,
-  ): Promise<{ raw: Uint8Array | null }> {
-    return this.request<{ raw: Uint8Array | null }>("GET_TEXTURE_DATA", {
-      fileIndex,
-      pathId,
-      sourceFileName,
-    } as never as JSONValue);
   }
 }
 export const workerClient = new WorkerClient();

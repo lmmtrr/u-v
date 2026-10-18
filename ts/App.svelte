@@ -111,7 +111,7 @@
       if (file.removedFromUI) return;
       file.objects.forEach((obj: UnityObject) => {
         if (obj.DynamicBone) kinds.add("DynamicBone");
-        else if (obj.SpringBone) kinds.add(file.unreal ? "Physics" : "SpringBone");
+        else if (obj.SpringBone) kinds.add(String((obj.SpringBone as Record<string, unknown>).label ?? "SpringBone"));
       });
     });
     return kinds.size === 1 ? `Enable ${[...kinds][0]}` : "Enable Physics";

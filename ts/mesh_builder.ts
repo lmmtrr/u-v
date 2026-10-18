@@ -13,7 +13,7 @@ import { createSkeletonForBones, findRoot } from "./bone_system";
 import { createMaterial, createMultiMaterial } from "./renderer_utils";
 import { computeCRC32, normalizeHash } from "./utils";
 import { isHumanoidAvatar } from "./humanoid_system";
-import { workerClient } from "./worker_client";
+import { unityWorker } from "./engines/unity/worker_api";
 import { state } from "./state";
 import type { MeshMeta, UnityObject, JSONValue, PathId } from "./types";
 export const getRelativeMatrix = (
@@ -160,7 +160,7 @@ export async function instantiateMesh(
       const matrixArray = hasSkin ? meshMatrix.toArray() : null;
       const normalMatrixArray =
         hasSkin && normalMatrix ? normalMatrix.toArray() : null;
-      const data = await workerClient.getMeshData(
+      const data = await unityWorker.getMeshData(
         file.fileIndex,
         pathId as PathId,
         mesh_data.sourceFileName || "",

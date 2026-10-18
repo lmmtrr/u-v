@@ -5,7 +5,7 @@ import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { MultiMaterial } from "@babylonjs/core/Materials/multiMaterial";
 import { state } from "./state";
-import { workerClient } from "./worker_client";
+import { unityWorker } from "./engines/unity/worker_api";
 import type { TextureMeta, MeshMeta, PathId, UnityObject } from "./types";
 type TextureInfo =
   | TextureMeta
@@ -60,7 +60,7 @@ export const toRGBABytes = async (
     );
     if (file && file.fileIndex !== undefined) {
       const pathId: PathId = texData.raw_path_id || texData.path_id || "";
-        const result = await workerClient.getTextureData(
+        const result = await unityWorker.getTextureData(
           file.fileIndex,
           pathId,
           texData.sourceFileName,

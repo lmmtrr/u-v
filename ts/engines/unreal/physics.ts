@@ -1,7 +1,7 @@
 import type { Mesh } from "@babylonjs/core/Meshes/mesh";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import { Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector";
-import type { PhysicsEntry } from "./physics_system";
+import type { PhysicsEntry } from "../../physics_system";
 
 const SOFT_PART = /hair|skirt|ribbon|cloth|tail|(^|[_-])ear\d|maedare|bust|breast|sode|sleeve|cape|coat|ahoge|scarf|frill|string/i;
 export const hasSoftParts = (bones: Array<{ name: string }>, physicsBones: string[]): boolean =>

@@ -1,16 +1,14 @@
-import { workerClient } from "./worker_client";
-import { updateProgress } from "./progress";
-import { showNotification } from "./ui";
-import type { LoadedFile, UnityObject, ViewerState } from "./types";
-import { filePath } from "./drop_files";
-import { hasSoftParts } from "./ue_physics";
+import { unrealWorker } from "./worker_api";
+import { updateProgress } from "../../progress";
+import { showNotification } from "../../ui";
+import type { UnityObject, ViewerState } from "../../types";
+import type { UnrealFileData } from "./types";
+import { filePath } from "../../drop_files";
+import { hasSoftParts } from "./physics";
 
-const UNREAL_EXTENSIONS = /\.(uasset|uexp|ubulk|usmap)$/i;
 const MAPPINGS_EXTENSION = /\.usmap$/i;
 
 let rememberedMappings: File | null = null;
-
-export const isUnrealFile = (name: string): boolean => UNREAL_EXTENSIONS.test(name);
 
 const commonFolderName = (paths: string[]): string => {
   const first = paths[0]?.split("/") ?? [];
@@ -19,7 +17,11 @@ const commonFolderName = (paths: string[]): string => {
     : "Unreal assets";
 };
 
-export const loadUnrealFiles = async (dropped: File[], state: ViewerState): Promise<boolean> => {
+export const loadUnrealFiles = async (
+  dropped: File[],
+  state: ViewerState,
+  engine: string,
+): Promise<boolean> => {
   const mappings = dropped.filter((f) => MAPPINGS_EXTENSION.test(f.name)).pop();
   if (mappings) rememberedMappings = mappings;
   const packages = dropped.filter((f) => !MAPPINGS_EXTENSION.test(f.name));
@@ -36,7 +38,7 @@ export const loadUnrealFiles = async (dropped: File[], state: ViewerState): Prom
   updateProgress(30, "Parsing Unreal Packages...", "Reading meshes");
   let result;
   try {
-    result = await workerClient.loadUnrealFiles(payload);
+    result = await unrealWorker.loadFiles(payload);
   } catch (err) {
     showNotification(`Failed to read Unreal packages: ${err instanceof Error ? err.message : String(err)}`, "error");
     return false;
@@ -50,15 +52,14 @@ export const loadUnrealFiles = async (dropped: File[], state: ViewerState): Prom
     );
   }
   if (meshes.length === 0 && (sockets.length > 0 || animations.length > 0)) {
+    const engineData: UnrealFileData = { envId, meshes: [], sockets, textures: [], animations };
     state.loadedFiles.push({
       name: commonFolderName(paths),
+      engine,
+      engineData,
       objects: [],
-      unreal: [],
-      unrealSockets: sockets,
-      unrealEnvId: envId,
-      unrealAnimations: animations,
       idSuffix: "",
-    } as LoadedFile);
+    });
     showNotification(
       `Loaded ${animations.length} animation(s) and ${sockets.length} socket(s).`,
       "success",
@@ -86,18 +87,16 @@ export const loadUnrealFiles = async (dropped: File[], state: ViewerState): Prom
     },
   }));
   if (meshes.some((m) => hasSoftParts(m.bones, m.physicsBones))) {
-    objects.push({ SpringBone: { path_id: `ue:physics:${envId}`, m_Enabled: true } });
+    objects.push({ SpringBone: { path_id: `ue:physics:${envId}`, m_Enabled: true, label: "Physics" } });
   }
+  const engineData: UnrealFileData = { envId, meshes, sockets, textures, animations };
   state.loadedFiles.push({
     name: commonFolderName(paths),
+    engine,
+    engineData,
     objects,
-    unreal: meshes,
-    unrealSockets: sockets,
-    unrealTextures: textures,
-    unrealEnvId: envId,
-    unrealAnimations: animations,
     idSuffix: "",
     isExpanded: true,
-  } as LoadedFile);
+  });
   return true;
 };
