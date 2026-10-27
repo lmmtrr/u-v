@@ -24,7 +24,7 @@ export const createScene = (engine: Engine): Scene => {
   camera.lowerBetaLimit = null;
   camera.upperBetaLimit = null;
   camera.wheelPrecision = 500;
-  camera.minZ = 0.001;
+  camera.minZ = 0.01;
   camera.maxZ = 10000;
   const defaultLight = new HemisphericLight(
     "defaultLight",
