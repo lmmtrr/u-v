@@ -18,7 +18,10 @@ export class UnityEngine extends AssetEngine {
   }
 
   buildScene(scene: Scene, files: LoadedFile[]): Promise<EngineScene> {
-    return new UnitySceneBuilder(scene).build(files, this.id);
+    return new UnitySceneBuilder(scene).build(
+      files.filter((f) => !f.removedFromUI),
+      this.id,
+    );
   }
 
   buildAnimation(clip: AnimationClipItem, meshes: Mesh[], scene: Scene, state: ViewerState): AnimationData {
