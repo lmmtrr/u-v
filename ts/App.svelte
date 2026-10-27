@@ -488,7 +488,7 @@
         if (pid && (pid === partId || pid === cleanTargetId || `orphan_${pid}` === partId)) {
           return false;
         }
-        if (partName) {
+        if (partName && (type === "SkinnedMeshRenderer" || type === "MeshRenderer" || type === "Mesh")) {
           const meshMeta = data.mesh as Record<string, unknown> | undefined;
           const displayName = String(data.name || meshMeta?.name || "");
           if (displayName && displayName === partName) {

@@ -40,6 +40,7 @@ import type { UnityObject, JSONValue, AnimationData } from "./types";
 import type { EngineScene } from "./engines/asset_engine";
 import { engineForClip, engines, filesOwnedBy } from "./engines/registry";
 const EXPORT_EMISSIVE = 0;
+const PART_TYPES = new Set(["SkinnedMeshRenderer", "MeshRenderer", "Mesh"]);
 export class SceneManager {
   public scene: Scene;
   constructor(scene: Scene) {
@@ -87,7 +88,7 @@ export class SceneManager {
       ) {
         return true;
       }
-      if (partName) {
+      if (partName && PART_TYPES.has(type)) {
         const meshMeta = data.mesh as Record<string, unknown> | undefined;
         const displayName = String(data.name || meshMeta?.name || "");
         if (displayName && displayName === partName) {
