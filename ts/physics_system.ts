@@ -44,6 +44,12 @@ export const setupSpringBones = (
 ): PhysicsEntry[] => {
   const entries: PhysicsEntry[] = [];
   const processedBones = new Set<string>();
+  const pathIdByNode = new Map<TransformNode, string>();
+  transformNodes.forEach((n, pid) => pathIdByNode.set(n, pid));
+  const childIdsOf = (node: TransformNode): string[] =>
+    node
+      .getChildren((c) => pathIdByNode.has(c as TransformNode), true)
+      .map((c) => pathIdByNode.get(c as TransformNode)!);
   for (let obj of objects) {
     if (!obj) continue;
     const type = Object.keys(obj)[0];
@@ -117,10 +123,9 @@ export const setupSpringBones = (
           }
         }
         if (targetBones.length > 0) {
-          const childNodes: TransformNode[] = [];
-          for (const [, n] of transformNodes) {
-            if (n.parent === node) childNodes.push(n);
-          }
+          const childNodes = childIdsOf(node).map(
+            (pid) => transformNodes.get(pid)!,
+          );
           let childWorldPos: Vector3;
           if (childNodes.length === 0) {
             const selfPos = node.getAbsolutePosition();
@@ -201,11 +206,7 @@ export const setupSpringBones = (
           }
         }
         if (type === "DynamicBone" && depth < 20) {
-          const children: string[] = [];
-          for (const [pid, n] of transformNodes) {
-            if (n.parent === node) children.push(pid);
-          }
-          for (const childId of children) {
+          for (const childId of childIdsOf(node)) {
             addBoneChain(childId, depth + 1, maxDepth);
           }
         }
