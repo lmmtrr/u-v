@@ -56,8 +56,60 @@
   let partFilters: Record<number, string> = {};
   let expandedParts: Record<string, boolean> = {};
   let filterExpandedOverrides: Record<string, boolean> = {};
+  let expandedExpressions: Record<string, boolean> = {};
+  let morphTick = 0;
+  let morphSignature = "";
+  let morphSyncFrame = 0;
+  function syncMorphInfluences() {
+    let signature = "";
+    state.createdMeshes.forEach((mesh) => {
+      const manager = mesh.morphTargetManager;
+      if (!manager) return;
+      for (let i = 0; i < manager.numTargets; i++) {
+        signature += manager.getTarget(i).influence.toFixed(2) + ",";
+      }
+    });
+    if (signature !== morphSignature) {
+      morphSignature = signature;
+      morphTick++;
+    }
+    morphSyncFrame = requestAnimationFrame(syncMorphInfluences);
+  }
+  function resetMorphTargets(partId: string) {
+    getPartDetails(partId).morphTargets.forEach(({ target }) => {
+      target.influence = 0;
+      state.morphOverrides.delete(target);
+    });
+    morphTick++;
+  }
+  function startMorphDrag(e: PointerEvent, partId: string, morphIdx: number) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const row = e.currentTarget as HTMLElement;
+    const slider = row.querySelector<HTMLInputElement>(".blendshape-slider");
+    if (!slider) return;
+    const thumbSize = 12;
+    const apply = (ev: PointerEvent) => {
+      const rect = slider.getBoundingClientRect();
+      const ratio = (ev.clientX - rect.left - thumbSize / 2) / Math.max(1, rect.width - thumbSize);
+      const weight = Math.round(Math.min(1, Math.max(0, ratio)) * 100) / 100;
+      onUpdateMorphTargetWeight(partId, morphIdx, weight);
+      morphTick++;
+    };
+    const end = () => {
+      row.removeEventListener("pointermove", apply);
+      row.removeEventListener("pointerup", end);
+      row.removeEventListener("pointercancel", end);
+    };
+    row.setPointerCapture(e.pointerId);
+    row.addEventListener("pointermove", apply);
+    row.addEventListener("pointerup", end);
+    row.addEventListener("pointercancel", end);
+    apply(e);
+  }
   let lastPartFilters: Record<number, string> = {};
   let fileHeaderHeights: Record<number, number> = {};
+  let partRowHeights: Record<string, number> = {};
   $: {
     for (const [fileIndexStr, q] of Object.entries(partFilters)) {
       const fIdx = Number(fileIndexStr);
@@ -200,7 +252,7 @@
       a.name.localeCompare(b.name),
     );
   }
-  function getPartDetails(partId: string) {
+  function getPartDetails(partId: string, _tick = 0) {
     const babylonMesh = state.createdMeshes.find(
       (m) => m.metadata && String(m.metadata.rendererPathId) === String(partId),
     );
@@ -236,7 +288,7 @@
     return {
       subMaterials,
       morphTargets,
-      hasDetails: subMaterials.length > 1 || morphTargets.length > 0,
+      hasDetails: subMaterials.length > 1,
     };
   }
   function handleDragOver(e: DragEvent) {
@@ -339,7 +391,9 @@
     window.addEventListener("mousemove", handleMouseMove);
     window.addEventListener("mouseup", handleGlobalMouseUp);
     window.addEventListener("keydown", handleKeyDown);
+    morphSyncFrame = requestAnimationFrame(syncMorphInfluences);
     return () => {
+      cancelAnimationFrame(morphSyncFrame);
       window.removeEventListener("dragover", handleDragOver);
       window.removeEventListener("dragenter", handleDragEnter);
       window.removeEventListener("dragleave", handleDragLeave);
@@ -745,8 +799,8 @@
                     {@const isExpanded = query && filterExpandedOverrides[part.id] !== undefined ? filterExpandedOverrides[part.id] : defaultExpanded}
                     {@const isPartActive = part.enabled !== false && subDetails.subMaterials.every((sub) => sub.visible)}
                     {#if isFilterMatch}
-                      <div class="part-group">
-                      <div class="part-row">
+                      <div class="part-group" style="--part-row-height: {partRowHeights[part.id] || 0}px;">
+                      <div class="part-row" bind:offsetHeight={partRowHeights[part.id]}>
                         {#if subDetails.hasDetails}
                           <div
                             class="part-expand-toggle"
@@ -884,35 +938,56 @@
                               {/each}
                             </div>
                           {/if}
-                          {#if subDetails.morphTargets.length > 0}
-                            <div class="part-details-header">Expressions</div>
-                            <div class="blendshapes-list">
-                              {#each getPartDetails(part.id).morphTargets as morph, morphIdx}
-                                <div class="blendshape-row">
-                                  <div class="blendshape-info">
-                                    <div class="blendshape-label">{morph.name}</div>
-                                    <div class="blendshape-value">
-                                      {morph.influence.toFixed(2)}
-                                    </div>
-                                  </div>
-                                  <div class="blendshape-slider-container">
-                                    <input
-                                      type="range"
-                                      class="blendshape-slider"
-                                      min="0"
-                                      max="1"
-                                      step="0.01"
-                                      value={morph.influence}
-                                      on:input={(e) => {
-                                        const weight = Number(e.currentTarget.value);
-                                        onUpdateMorphTargetWeight(part.id, morphIdx, weight);
-                                        morph.influence = weight;
-                                      }}
-                                    />
+                        </div>
+                      {/if}
+                      {#if subDetails.morphTargets.length > 0}
+                        {@const isExprExpanded = !!expandedExpressions[part.id]}
+                        <div class="expressions-accordion">
+                          <div
+                            class="expressions-header-row"
+                            on:click={() => (expandedExpressions = { ...expandedExpressions, [part.id]: !isExprExpanded })}
+                          >
+                            <div class="part-expand-toggle" class:expanded={isExprExpanded}>
+                              {isExprExpanded ? "▼" : "▶"}
+                            </div>
+                            <span class="part-details-header">Expressions ({subDetails.morphTargets.length})</span>
+                            <button
+                              class="expressions-reset"
+                              title="Reset all expressions to 0"
+                              on:click|stopPropagation={() => resetMorphTargets(part.id)}
+                            >Reset</button>
+                          </div>
+                          {#if isExprExpanded}
+                          <div class="blendshapes-list">
+                            {#each getPartDetails(part.id, morphTick).morphTargets as morph, morphIdx}
+                              <div
+                                class="blendshape-row"
+                                on:pointerdown={(e) => startMorphDrag(e, part.id, morphIdx)}
+                              >
+                                <div class="blendshape-info">
+                                  <div class="blendshape-label">{morph.name}</div>
+                                  <div class="blendshape-value">
+                                    {morph.influence.toFixed(2)}
                                   </div>
                                 </div>
-                              {/each}
-                            </div>
+                                <div class="blendshape-slider-container">
+                                  <input
+                                    type="range"
+                                    class="blendshape-slider"
+                                    min="0"
+                                    max="1"
+                                    step="0.01"
+                                    value={morph.influence}
+                                    on:input={(e) => {
+                                      const weight = Number(e.currentTarget.value);
+                                      onUpdateMorphTargetWeight(part.id, morphIdx, weight);
+                                      morphTick++;
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            {/each}
+                          </div>
                           {/if}
                         </div>
                       {/if}

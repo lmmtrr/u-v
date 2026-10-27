@@ -589,7 +589,7 @@ export async function instantiateMesh(
         const shapes = mesh_data.m_Shapes.shapes;
         const vertices = mesh_data.m_Shapes.vertices;
         if (shapes && vertices) {
-          const shape = shapes[channel.frameIndex];
+          const shape = shapes[channel.frameIndex + channel.frameCount - 1];
           if (shape && shape.vertexCount !== undefined && shape.firstVertex !== undefined) {
             const target = new MorphTarget(channel.name || `shape_${channelIdx}`, 0, scene);
             const targetPositions = new Float32Array(transformedPositions.length);

@@ -368,7 +368,7 @@ pub fn unity_value_to_json(value: &UnityValue) -> serde_json::Value {
         UnityValue::Null => serde_json::Value::Null,
     }
 }
-fn process_mesh(mesh: &Mesh, path_id: i64) -> serde_json::Value {
+fn process_mesh(mesh: &Mesh, raw: &UnityValue, path_id: i64) -> serde_json::Value {
     let mut json_map = serde_json::Map::new();
     json_map.insert("path_id".to_string(), serde_json::Value::String(path_id.to_string()));
     json_map.insert("name".to_string(), serde_json::Value::String(mesh.m_Name.clone()));
@@ -400,7 +400,33 @@ fn process_mesh(mesh: &Mesh, path_id: i64) -> serde_json::Value {
         let hash_values = hashes.iter().map(|&h| serde_json::Value::Number(h.into())).collect();
         json_map.insert("m_BoneNameHashes".to_string(), serde_json::Value::Array(hash_values));
     }
+    if let Some(shapes) = process_blend_shapes(raw) {
+        json_map.insert("m_Shapes".to_string(), shapes);
+    }
     serde_json::Value::Object(json_map)
+}
+fn process_blend_shapes(raw: &UnityValue) -> Option<serde_json::Value> {
+    let shapes_json = unity_value_to_json(raw.get("m_Shapes")?);
+    let channels = shapes_json.get("channels")?.as_array()?;
+    if channels.is_empty() {
+        return None;
+    }
+    let vec3 = |v: Option<&serde_json::Value>| -> serde_json::Value {
+        let c = |k: &str| v.and_then(|o| o.get(k)).and_then(|n| n.as_f64()).unwrap_or(0.0);
+        serde_json::json!([c("x"), c("y"), c("z")])
+    };
+    let vertices: Vec<serde_json::Value> = shapes_json.get("vertices").and_then(|v| v.as_array()).map(|arr| {
+        arr.iter().map(|v| serde_json::json!({
+            "index": v.get("index").cloned().unwrap_or(serde_json::Value::Null),
+            "vertex": vec3(v.get("vertex")),
+        })).collect()
+    }).unwrap_or_default();
+    Some(serde_json::json!({
+        "vertices": vertices,
+        "shapes": shapes_json.get("shapes").cloned().unwrap_or(serde_json::json!([])),
+        "channels": channels,
+        "fullWeights": shapes_json.get("fullWeights").cloned().unwrap_or(serde_json::json!([])),
+    }))
 }
 fn process_skinned_mesh_renderer(val: &UnityValue, path_id: i64) -> serde_json::Value {
     let mut json = unity_value_to_json(val);
@@ -907,7 +933,7 @@ impl Environment {
                                         }
                                     }
                                     if let Ok(mesh) = Mesh::try_from_unity_value(&resolved_value) {
-                                        let json = process_mesh(&mesh, path_id);
+                                        let json = process_mesh(&mesh, &resolved_value, path_id);
                                         objects.push(ClassType::Mesh(json));
                                         if !referenced_meshes.contains(&path_id) {
                                             println!("Loaded unreferenced mesh as fallback in Environment: name='{}', path_id={}", mesh.m_Name, path_id);

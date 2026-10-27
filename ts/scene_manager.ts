@@ -557,6 +557,7 @@ export class SceneManager {
       const target = mesh.morphTargetManager.getTarget(targetIndex);
       if (target) {
         target.influence = value;
+        state.morphOverrides.add(target);
       }
     }
   };
@@ -635,13 +636,6 @@ export class SceneManager {
         }
         if (node.metadata.initialScaling) {
           node.scaling.copyFrom(node.metadata.initialScaling);
-        }
-      }
-    });
-    state.createdMeshes.forEach((mesh) => {
-      if (mesh.morphTargetManager) {
-        for (let i = 0; i < mesh.morphTargetManager.numTargets; i++) {
-          mesh.morphTargetManager.getTarget(i).influence = 0;
         }
       }
     });
@@ -1455,7 +1449,8 @@ export class SceneManager {
     this.scene.meshes.forEach((node) => {
       const mesh = node as Mesh;
       const subMeshes = mesh.subMeshes;
-      if (!subMeshes || subMeshes.length < 2) return;
+      const hasMorphs = (mesh.morphTargetManager?.numTargets ?? 0) > 0;
+      if (!subMeshes || (subMeshes.length < 2 && !hasMorphs)) return;
       const indices = mesh.getIndices();
       if (!indices) return;
       const totalVertices = mesh.getTotalVertices();
@@ -1495,7 +1490,7 @@ export class SceneManager {
           if (v < minVertex) minVertex = v;
           if (v > maxVertex) maxVertex = v;
         }
-        if (maxVertex < minVertex) {
+        if (hasMorphs || maxVertex < minVertex) {
           minVertex = 0;
           maxVertex = totalVertices - 1;
         }

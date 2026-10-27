@@ -141,6 +141,7 @@ export interface ViewerState {
   physicsEnabled: boolean;
   physicsObserver: Observer<Scene> | null;
   partTranslations: Map<string, { x: number; y: number; z: number }>;
+  morphOverrides: Set<MorphTarget>;
   materialCache: Map<string, Material>;
   textureCache: Map<string, Texture>;
   animationDropdown: HTMLElement | null;

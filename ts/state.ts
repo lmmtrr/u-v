@@ -36,6 +36,7 @@ export const state: ViewerState = {
   physicsEnabled: false,
   physicsObserver: null as Observer<Scene> | null,
   partTranslations: new Map<string, { x: number; y: number; z: number }>(),
+  morphOverrides: new Set(),
   materialCache: new Map<string, Material>(),
   textureCache: new Map<string, Texture>(),
   animationDropdown: null as HTMLElement | null,
@@ -62,6 +63,7 @@ export const state: ViewerState = {
     this.animationClips = [];
     this.createdMeshes = [];
     this.genericPartAttachments = [];
+    this.morphOverrides.clear();
     this.animationPlaying = false;
     this._warnedEmptyAnim = false;
   },

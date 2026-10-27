@@ -941,6 +941,7 @@ export const createAnimationObserver = (
       });
     }
     state.currentAnimationData.morphs.forEach((curve: { time: number; frame: number; value: number }[], target: MorphTarget) => {
+      if (state.morphOverrides.has(target)) return;
       const val = interpolate(curve, frame);
       if (val !== null) {
         target.influence = val / 100.0;
