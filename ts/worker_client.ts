@@ -30,6 +30,9 @@ class WorkerClient {
     };
     this.worker.onerror = (error: ErrorEvent) => {
       console.error("Worker error:", error);
+      const message = error.message || "Worker crashed.";
+      this.pendingRequests.forEach(({ reject }) => reject(new Error(message)));
+      this.pendingRequests.clear();
     };
   }
   request<T>(
