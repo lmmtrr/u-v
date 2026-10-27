@@ -54,48 +54,6 @@ const ensureApp = () => {
       target: uiRoot || document.body,
       props: savedProps,
     }) as SvelteAppInstance;
-    let top = document.getElementById("notifications-top");
-    if (!top) {
-      top = document.createElement("div");
-      top.id = "notifications-top";
-      top.style.position = "fixed";
-      top.style.bottom = "20px";
-      top.style.right = "20px";
-      top.style.display = "flex";
-      top.style.flexDirection = "column";
-      top.style.gap = "10px";
-      top.style.zIndex = "11000";
-      top.style.pointerEvents = "none";
-      document.body.appendChild(top);
-    }
-    if (app && app.showNotification) {
-      const orig = app.showNotification.bind(app);
-      app.showNotification = (
-        message: string,
-        type: string = "error",
-        duration: number = 5000,
-      ) => {
-        try {
-          orig(message, type, duration);
-        } catch {}
-        try {
-          const note = document.createElement("div");
-          note.className = `notification ${type} show`;
-          note.style.pointerEvents = "auto";
-          const content = document.createElement("div");
-          content.className = "notification-content";
-          content.textContent = message;
-          const closeBtn = document.createElement("button");
-          closeBtn.className = "notification-close";
-          closeBtn.innerHTML = "&times;";
-          closeBtn.onclick = () => note.remove();
-          note.appendChild(content);
-          note.appendChild(closeBtn);
-          top!.appendChild(note);
-          if (duration > 0) setTimeout(() => note.remove(), duration);
-        } catch {}
-      };
-    }
   }
 };
 const updateApp = (newProps: Partial<typeof savedProps>) => {
