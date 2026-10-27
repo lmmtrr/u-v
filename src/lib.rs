@@ -10,6 +10,6 @@ mod tests {
     #[test]
     fn test_load() {
         let data = fs::read("1.ab").expect("Failed to read 1.ab");
-        let _env = Environment::new(data);
+        let _env = Environment::new(data, None, None);
     }
 }

@@ -14,8 +14,20 @@ const toFloat32 = (values: number[] | Float32Array): Float32Array =>
   Array.isArray(values) ? new Float32Array(values) : Float32Array.from(values);
 
 export const unityHandlers: WorkerHandlers = {
-  LOAD_FILE: ({ arrayBuffer, name }: { arrayBuffer: ArrayBuffer; name: string }) => {
-    const env = new Environment(new Uint8Array(arrayBuffer));
+  LOAD_FILE: ({
+    arrayBuffer,
+    name,
+    rawFiles = [],
+  }: {
+    arrayBuffer: ArrayBuffer;
+    name: string;
+    rawFiles?: Array<{ name: string; arrayBuffer: ArrayBuffer }>;
+  }) => {
+    const env = new Environment(
+      new Uint8Array(arrayBuffer),
+      name,
+      rawFiles.map((raw) => [raw.name, new Uint8Array(raw.arrayBuffer)]),
+    );
     const objects = JSON.parse(env.getObjects()) as never as JSONValue[];
     const hash = JSON.parse(env.getObjectHash()) as never as Record<string, string>;
     let assetInfo: JSONValue = null;

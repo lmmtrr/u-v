@@ -19,11 +19,30 @@ const readFileAsArrayBuffer = (
     reader.readAsArrayBuffer(file);
   });
 };
+const RAW_STREAM = /\.(resS|resource)$/i;
+const isBundle = (buffer: ArrayBuffer): boolean =>
+  new TextDecoder().decode(new Uint8Array(buffer, 0, Math.min(7, buffer.byteLength))) === "UnityFS";
 export const loadUnityFiles = async (
-  files: File[],
+  droppedFiles: File[],
   state: ViewerState,
   engine: string,
 ): Promise<boolean> => {
+  const rawStreams = droppedFiles.filter((f) => RAW_STREAM.test(f.name));
+  const files = droppedFiles.filter((f) => !RAW_STREAM.test(f.name));
+  if (files.length === 0) {
+    showNotification(
+      "Load .resS / .resource files together with the serialized file that uses them.",
+      "error",
+    );
+    return false;
+  }
+  const rawStreamsFor = async (file: File, buffer: ArrayBuffer) => {
+    const matched = rawStreams.filter((raw) => raw.name.startsWith(file.name));
+    const selected = matched.length > 0 || isBundle(buffer) ? matched : rawStreams;
+    return Promise.all(
+      selected.map(async (raw) => ({ name: raw.name, arrayBuffer: await raw.arrayBuffer() })),
+    );
+  };
   const totalFiles = files.length;
   let filesCompleted = 0;
   let succeeded = false;
@@ -47,7 +66,7 @@ export const loadUnityFiles = async (
         `Decompressing structures in ${file.name}`,
       );
       const { fileIndex, name, objects, hash, assetInfo } =
-        await unityWorker.loadFile(arrayBuf, file.name);
+        await unityWorker.loadFile(arrayBuf, file.name, await rawStreamsFor(file, arrayBuf));
       if (!objects || objects.length === 0) {
         showNotification(
           `${file.name} may not be a Unity file or may be encrypted.`,

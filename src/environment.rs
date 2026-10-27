@@ -32,6 +32,26 @@ pub enum ClassType {
         class_id: i32,
     },
 }
+fn is_serialized_file(data: &[u8]) -> bool {
+    let be32 = |at: usize| u32::from_be_bytes([data[at], data[at + 1], data[at + 2], data[at + 3]]) as u64;
+    if data.len() < 20 {
+        return false;
+    }
+    let version = be32(8);
+    if !(5..=50).contains(&version) {
+        return false;
+    }
+    let (file_size, data_offset) = if version >= 22 {
+        if data.len() < 48 {
+            return false;
+        }
+        let be64 = |at: usize| u64::from_be_bytes(data[at..at + 8].try_into().unwrap());
+        (be64(24), be64(32))
+    } else {
+        (be32(4), be32(12))
+    };
+    file_size == data.len() as u64 && data_offset <= file_size
+}
 fn simplify_name_rust(name: &str) -> String {
     let name = name.replace('\\', "/");
     let basename = name.rsplit('/').next().unwrap_or(&name);
@@ -698,24 +718,48 @@ pub fn preprocess_avatar_json(json: &mut serde_json::Value) {
 #[wasm_bindgen]
 impl Environment {
     #[wasm_bindgen(constructor)]
-    pub fn new(data: Vec<u8>) -> Self {
-        let mut reader = Reader::new(data, UnityVersion::default());
-        let signature = reader.read_string_null();
-        reader.pos = 0;
+    pub fn new(data: Vec<u8>, name: Option<String>, raw_files: Option<js_sys::Array>) -> Self {
         let mut objects: Vec<ClassType> = Vec::new();
         let mut object_hash = HashMap::new();
         let mut asset_manager = AssetManager::new();
-        let bundle = if signature == "UnityFS" { Bundle::read(&mut reader).ok() } else { None };
-        if let Some(bundle) = bundle {
-            for entry in bundle.files.iter() {
-                if entry.name.ends_with(".resS") || entry.name.ends_with(".resource") {
-                    asset_manager.add_raw_file(entry.name.clone(), entry.data.clone());
-                } else if entry.data.len() > 20 {
-                    let mut asset_reader = Reader::new(entry.data.clone(), bundle.engine_version.clone());
-                    let sf = SerializedFile::read(&mut asset_reader);
-                    asset_manager.add_file(entry.name.clone(), sf);
+        let loaded = if data.starts_with(b"UnityFS\0") {
+            let mut reader = Reader::new(data, UnityVersion::default());
+            match Bundle::read(&mut reader) {
+                Ok(bundle) => {
+                    for entry in bundle.files.iter() {
+                        if entry.name.ends_with(".resS") || entry.name.ends_with(".resource") {
+                            asset_manager.add_raw_file(entry.name.clone(), entry.data.clone());
+                        } else if entry.data.len() > 20 {
+                            let mut asset_reader = Reader::new(entry.data.clone(), bundle.engine_version.clone());
+                            let sf = SerializedFile::read(&mut asset_reader);
+                            asset_manager.add_file(entry.name.clone(), sf);
+                        }
+                    }
+                    true
+                }
+                Err(_) => false,
+            }
+        } else if is_serialized_file(&data) {
+            for entry in raw_files.iter().flat_map(|files| files.iter()) {
+                let entry = js_sys::Array::from(&entry);
+                if let (Some(raw_name), Ok(raw_data)) = (entry.get(0).as_string(), entry.get(1).dyn_into::<Uint8Array>()) {
+                    let raw_name = raw_name.replace('\\', "/");
+                    let base = raw_name.rsplit('/').next().unwrap_or(&raw_name).to_string();
+                    asset_manager.add_raw_file(base, raw_data.to_vec());
                 }
             }
+            let mut reader = Reader::new(data, UnityVersion::default());
+            let sf = SerializedFile::read(&mut reader);
+            let name = name
+                .map(|n| n.replace('\\', "/"))
+                .and_then(|n| n.rsplit('/').next().map(str::to_string))
+                .filter(|n| !n.is_empty());
+            asset_manager.add_file(name.unwrap_or_else(|| "serializedfile".to_string()), sf);
+            true
+        } else {
+            false
+        };
+        if loaded {
             let mut game_objects_map = HashMap::new();
             let mut transforms_map = HashMap::new();
             let mut mono_script_class_map = HashMap::new();

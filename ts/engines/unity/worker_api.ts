@@ -10,11 +10,15 @@ export interface UnityLoadResult {
 }
 
 export const unityWorker = {
-  loadFile: (arrayBuffer: ArrayBuffer, name: string): Promise<UnityLoadResult> =>
+  loadFile: (
+    arrayBuffer: ArrayBuffer,
+    name: string,
+    rawFiles: Array<{ name: string; arrayBuffer: ArrayBuffer }> = [],
+  ): Promise<UnityLoadResult> =>
     workerClient.request<UnityLoadResult>(
       "LOAD_FILE",
-      { arrayBuffer, name } as never as JSONValue,
-      [arrayBuffer],
+      { arrayBuffer, name, rawFiles } as never as JSONValue,
+      [arrayBuffer, ...rawFiles.map((raw) => raw.arrayBuffer)],
     ),
   getMeshData: (
     fileIndex: number,
