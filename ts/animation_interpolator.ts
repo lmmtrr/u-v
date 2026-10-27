@@ -1,5 +1,16 @@
+type CurveKey = { frame: number; value: number; cubic?: [number, number, number] };
+const evaluateSegment = (k: CurveKey, next: CurveKey, frame: number): number => {
+  const cubic = k.cubic;
+  if (cubic) {
+    const d = frame - k.frame;
+    const value = ((cubic[0] * d + cubic[1]) * d + cubic[2]) * d + k.value;
+    return Number.isFinite(value) ? value : k.value;
+  }
+  const t = (frame - k.frame) / (next.frame - k.frame);
+  return k.value + t * (next.value - k.value);
+};
 export const interpolate = (
-  keys: Array<{ frame: number; value: number }> & { _lastIdx?: number },
+  keys: Array<CurveKey> & { _lastIdx?: number },
   frame: number,
 ): number | null => {
   if (!keys || keys.length === 0) return null;
@@ -11,16 +22,14 @@ export const interpolate = (
     const k = keys[idx];
     const next = keys[idx + 1];
     if (k.frame <= frame && next.frame > frame) {
-      const t = (frame - k.frame) / (next.frame - k.frame);
-      return k.value + t * (next.value - k.value);
+      return evaluateSegment(k, next, frame);
     }
     if (idx + 1 < last) {
       const kNext = keys[idx + 1];
       const kNext2 = keys[idx + 2];
       if (kNext.frame <= frame && kNext2.frame > frame) {
         keys._lastIdx = idx + 1;
-        const t = (frame - kNext.frame) / (kNext2.frame - kNext.frame);
-        return kNext.value + t * (kNext2.value - kNext.value);
+        return evaluateSegment(kNext, kNext2, frame);
       }
     }
   }
@@ -32,9 +41,7 @@ export const interpolate = (
     if (k.frame <= frame) {
       if (keys[mid + 1].frame > frame) {
         keys._lastIdx = mid;
-        const next = keys[mid + 1];
-        const t = (frame - k.frame) / (next.frame - k.frame);
-        return k.value + t * (next.value - k.value);
+        return evaluateSegment(k, keys[mid + 1], frame);
       }
       low = mid + 1;
     } else {

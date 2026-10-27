@@ -184,6 +184,7 @@ export interface AnimationCurveKey {
   time: number;
   frame: number;
   value: number;
+  cubic?: [number, number, number];
 }
 export interface MuscleCurveItem {
   axis: string;

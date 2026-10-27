@@ -69,7 +69,6 @@ export class StreamedCurveKey {
   public coeff: number[];
   public outSlope: number;
   public value: number;
-  public inSlope: number;
   constructor(reader: JSBinaryReader) {
     this.index = reader.readInt32();
     this.coeff = [];
@@ -78,18 +77,6 @@ export class StreamedCurveKey {
     }
     this.outSlope = this.coeff[2];
     this.value = this.coeff[3];
-    this.inSlope = 0;
-  }
-  calculateNextInSlope(dx: number, rhs: StreamedCurveKey): number {
-    if (this.coeff[0] === 0 && this.coeff[1] === 0 && this.coeff[2] === 0) {
-      return Infinity;
-    }
-    dx = Math.max(dx, 0.0001);
-    const dy = rhs.value - this.value;
-    const length = 1.0 / (dx * dx);
-    const d1 = this.outSlope * dx;
-    const d2 = dy + dy + dy - d1 - d1 - this.coeff[1] / length;
-    return d2 / dx;
   }
 }
 export class StreamedFrame {
@@ -142,24 +129,6 @@ export const readStreamedData = (
   const frameList: StreamedFrame[] = [];
   while (reader.pos < streamedClipBuffer.byteLength) {
     frameList.push(new StreamedFrame(reader));
-  }
-  for (let frameIndex = 2; frameIndex < frameList.length - 1; frameIndex++) {
-    const frame = frameList[frameIndex];
-    for (const curveKey of frame.keyList) {
-      for (let i = frameIndex - 1; i >= 0; i--) {
-        const preFrame = frameList[i];
-        const preCurveKey = preFrame.keyList.find(
-          (x) => x.index === curveKey.index,
-        );
-        if (preCurveKey) {
-          curveKey.inSlope = preCurveKey.calculateNextInSlope(
-            frame.time - preFrame.time,
-            curveKey,
-          );
-          break;
-        }
-      }
-    }
   }
   return frameList;
 };

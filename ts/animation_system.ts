@@ -12,7 +12,7 @@ import {
   getBonePathForHumanBone,
 } from "./humanoid_system";
 import { computeCRC32, getBindingPath, normalizeHash } from "./utils";
-import type { ViewerState, AnimationData, AnimationBoneData, UnityObject, JSONValue } from "./types";
+import type { ViewerState, AnimationData, AnimationBoneData, AnimationCurveKey, UnityObject, JSONValue } from "./types";
 import {
   preprocessAnimationClip,
   resolveAvatarForAnimation,
@@ -57,20 +57,23 @@ export const buildAnimationData = (
   }
   preprocessAnimationClip(clipData);
   const frameRate = Number(clipData.m_SampleRate ?? 24);
-  const curvesData: Record<
-    number,
-    { time: number; frame: number; value: number }[]
-  > = {};
+  const curvesData: Record<number, AnimationCurveKey[]> = {};
   let streamedFrames: StreamedFrame[] = (clipData.m_StreamedFrames as never as StreamedFrame[]) || [];
   for (let i = 1; i < streamedFrames.length - 1; i++) {
     const frame = streamedFrames[i];
     if (!frame || !frame.keyList) continue;
     for (const key of frame.keyList) {
       if (!curvesData[key.index]) curvesData[key.index] = [];
+      const [c0, c1, c2] = key.coeff;
       curvesData[key.index].push({
         time: frame.time,
-        frame: Math.round(frame.time * frameRate),
+        frame: frame.time * frameRate,
         value: key.value,
+        cubic: [
+          c0 / (frameRate * frameRate * frameRate),
+          c1 / (frameRate * frameRate),
+          c2 / frameRate,
+        ],
       });
     }
   }
@@ -141,6 +144,7 @@ export const buildAnimationData = (
       if (lastFrame > maxFrame) maxFrame = lastFrame;
     }
   }
+  maxFrame = Math.round(maxFrame);
   const bindingMap = new Map<number, { binding: Record<string, JSONValue>; componentIdx: number }>();
   let curves = 0;
   const bindingConstant = clipData.m_ClipBindingConstant as Record<string, JSONValue> | undefined;
