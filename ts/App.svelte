@@ -193,13 +193,28 @@
   function dismissNotification(id: number) {
     notifications = notifications.filter((n) => n.id !== id);
   }
+  function rootNameOf(goId: string, goNames: Map<string, string>): string {
+    let transform = state.transformsByGameObjectId.get(goId);
+    let rootGoId = goId;
+    for (let depth = 0; transform && depth < 256; depth++) {
+      rootGoId = String((transform.m_GameObject as Record<string, unknown> | undefined)?.path_id ?? rootGoId);
+      const fatherId = String((transform.m_Father as Record<string, unknown> | undefined)?.path_id ?? "0");
+      if (fatherId === "0" || fatherId === "") break;
+      transform = state.transformsByPathId.get(fatherId);
+    }
+    return goNames.get(rootGoId) || "";
+  }
   function getBestParts(file: LoadedFile) {
-    const bestPartsByName = new Map<string, { name: string; id: string; enabled: unknown; isCreated: boolean; textureCount: number }>();
-    const renderers = file.objects.filter(
-      (obj: UnityObject) => obj.SkinnedMeshRenderer || obj.MeshRenderer,
-    );
-    renderers.forEach((obj: UnityObject) => {
-      const renderer = (obj.SkinnedMeshRenderer || obj.MeshRenderer) as Record<string, unknown>;
+    type Part = { name: string; label: string; id: string; enabled: unknown; isCreated: boolean; root: string; uniqueName: boolean };
+    const parts: Part[] = [];
+    const goNames = new Map<string, string>();
+    file.objects.forEach((obj: UnityObject) => {
+      const go = obj.GameObject as Record<string, unknown> | undefined;
+      if (go) goNames.set(String(go.path_id ?? ""), String(go.name ?? ""));
+    });
+    file.objects.forEach((obj: UnityObject) => {
+      const renderer = (obj.SkinnedMeshRenderer || obj.MeshRenderer) as Record<string, unknown> | undefined;
+      if (!renderer) return;
       const partIdStr = String(renderer.path_id || "");
       if (!partIdStr) return;
       const isCreated = !!(createdPathIds && createdPathIds.has(partIdStr));
@@ -207,21 +222,18 @@
       const meshMeta = renderer.mesh as Record<string, unknown> | undefined;
       const partNameStr =
         String(renderer.name || meshMeta?.name || "part_" + partIdStr);
-      const texturePathIds = renderer.texture_path_ids as unknown[] | undefined;
-      const textureCount = (texturePathIds || []).filter(
-        (id: unknown) => String(id) !== "0",
-      ).length;
-      const current = bestPartsByName.get(partNameStr);
-      if (!current || textureCount > current.textureCount) {
-        bestPartsByName.set(partNameStr, {
-          name: partNameStr,
-          id: partIdStr,
-          enabled: renderer.m_Enabled,
-          isCreated,
-          textureCount,
-        });
-      }
+      const goId = String((renderer.m_GameObject as Record<string, unknown> | undefined)?.path_id ?? "");
+      parts.push({
+        name: partNameStr,
+        label: partNameStr,
+        id: partIdStr,
+        enabled: renderer.m_Enabled,
+        isCreated,
+        root: goId && goId !== "0" ? rootNameOf(goId, goNames) : "",
+        uniqueName: true,
+      });
     });
+    const rendererNames = new Set(parts.map((part) => part.name));
     file.objects
       .filter((obj: UnityObject) => obj.Mesh)
       .forEach((obj: UnityObject) => {
@@ -235,22 +247,29 @@
           return;
         }
         const partNameStr = String(mesh.name || "mesh_" + meshPathIdStr);
-        if (bestPartsByName.has(partNameStr)) return;
+        if (rendererNames.has(partNameStr)) return;
         const rendererPathId = `orphan_${meshPathIdStr}`;
         const isCreated = !!(
           createdPathIds && createdPathIds.has(rendererPathId)
         );
-        bestPartsByName.set(partNameStr, {
+        parts.push({
           name: partNameStr,
+          label: partNameStr,
           id: rendererPathId,
           enabled: mesh.m_Enabled !== false,
           isCreated,
-          textureCount: 0,
+          root: "",
+          uniqueName: true,
         });
       });
-    return Array.from(bestPartsByName.values()).sort((a, b) =>
-      a.name.localeCompare(b.name),
-    );
+    const nameCounts = new Map<string, number>();
+    parts.forEach((part) => nameCounts.set(part.name, (nameCounts.get(part.name) ?? 0) + 1));
+    parts.forEach((part) => {
+      if ((nameCounts.get(part.name) ?? 0) < 2) return;
+      part.uniqueName = false;
+      part.label = part.root ? `${part.name} (${part.root})` : `${part.name} (${part.id})`;
+    });
+    return parts.sort((a, b) => a.label.localeCompare(b.label));
   }
   function getPartDetails(partId: string, _tick = 0) {
     const babylonMesh = state.createdMeshes.find(
@@ -477,33 +496,6 @@
   }
   function handleRemovePart(fileIndex: number, partId: string, partName?: string) {
     onRemovePart(fileIndex, partId, partName);
-    const file = loadedFiles[fileIndex];
-    if (file) {
-      const cleanTargetId = partId.startsWith("orphan_") ? partId.slice(7) : partId;
-      file.objects = file.objects.filter((obj: UnityObject) => {
-        const type = Object.keys(obj)[0];
-        const data = obj[type] as Record<string, unknown> | undefined;
-        if (!data) return true;
-        const pid = String(data.path_id ?? "");
-        if (pid && (pid === partId || pid === cleanTargetId || `orphan_${pid}` === partId)) {
-          return false;
-        }
-        if (partName && (type === "SkinnedMeshRenderer" || type === "MeshRenderer" || type === "Mesh")) {
-          const meshMeta = data.mesh as Record<string, unknown> | undefined;
-          const displayName = String(data.name || meshMeta?.name || "");
-          if (displayName && displayName === partName) {
-            return false;
-          }
-        }
-        return true;
-      });
-      if (createdPathIds) {
-        createdPathIds.delete(partId);
-        createdPathIds.delete(cleanTargetId);
-        createdPathIds = new Set(createdPathIds);
-      }
-      loadedFiles = [...loadedFiles];
-    }
   }
 </script>
 {#if showDroparea}
@@ -723,7 +715,7 @@
                           const query = (partFilters[fileIndex] || "").toLowerCase();
                           const visibleIds = bestParts
                             .filter((part) => {
-                              const matchesMesh = part.name.toLowerCase().includes(query);
+                              const matchesMesh = part.label.toLowerCase().includes(query);
                               const subDetails = getPartDetails(part.id);
                               const matchesSubmesh = subDetails.subMaterials.some((sub) => sub.name.toLowerCase().includes(query));
                               return !query || matchesMesh || matchesSubmesh;
@@ -753,7 +745,7 @@
                           const query = (partFilters[fileIndex] || "").toLowerCase();
                           const visibleIds = bestParts
                             .filter((part) => {
-                              const matchesMesh = part.name.toLowerCase().includes(query);
+                              const matchesMesh = part.label.toLowerCase().includes(query);
                               const subDetails = getPartDetails(part.id);
                               const matchesSubmesh = subDetails.subMaterials.some((sub) => sub.name.toLowerCase().includes(query));
                               return !query || matchesMesh || matchesSubmesh;
@@ -792,7 +784,7 @@
                   {#each getBestParts(file) as part}
                     {@const query = (partFilters[fileIndex] || "").toLowerCase()}
                     {@const subDetails = getPartDetails(part.id)}
-                    {@const matchesMesh = part.name.toLowerCase().includes(query)}
+                    {@const matchesMesh = part.label.toLowerCase().includes(query)}
                     {@const matchesSubmesh = subDetails.subMaterials.some(sub => sub.name.toLowerCase().includes(query))}
                     {@const isFilterMatch = !query || matchesMesh || matchesSubmesh}
                     {@const defaultExpanded = query ? (matchesSubmesh || !!expandedParts[part.id]) : !!expandedParts[part.id]}
@@ -878,9 +870,9 @@
                             }
                           }}
                         >
-                          {part.name}
+                          {part.label}
                         </div>
-                        <button class="btn-icon" on:click={() => handleRemovePart(fileIndex, part.id, part.name)}>
+                        <button class="btn-icon" on:click={() => handleRemovePart(fileIndex, part.id, part.uniqueName ? part.name : undefined)}>
                           &times;
                         </button>
                       </div>

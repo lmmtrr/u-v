@@ -98,7 +98,25 @@ export class SceneManager {
       }
       return false;
     };
+    const rendererOf = (obj: UnityObject) =>
+      (obj.SkinnedMeshRenderer || obj.MeshRenderer) as
+        | Record<string, unknown>
+        | undefined;
+    const removedMeshIds = new Set(
+      file.objects
+        .filter(isMatchObj)
+        .map((obj) => String(rendererOf(obj)?.mesh_path_id ?? ""))
+        .filter((id) => id && id !== "0"),
+    );
     file.objects = file.objects.filter((obj) => !isMatchObj(obj));
+    file.objects.forEach((obj) => {
+      const meshId = String(rendererOf(obj)?.mesh_path_id ?? "");
+      removedMeshIds.delete(meshId);
+    });
+    file.objects = file.objects.filter((obj) => {
+      const mesh = obj.Mesh as Record<string, unknown> | undefined;
+      return !mesh || !removedMeshIds.has(String(mesh.path_id ?? ""));
+    });
     state.allObjects = state.allObjects.filter((obj) => !isMatchObj(obj));
     state.createdMeshes = state.createdMeshes.filter((mesh) => {
       if (!mesh.metadata) return true;
