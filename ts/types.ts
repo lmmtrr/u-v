@@ -27,7 +27,8 @@ export interface MeshRequest {
 export interface MeshResponse {
   vertices?: Float32Array | null;
   normals?: Float32Array | null;
-  uvs?: Float32Array | null;
+  uv0?: Float32Array | null;
+  uv1?: Float32Array | null;
   indices?: Uint32Array | null;
   skinIndices?: Uint32Array | null;
   skinWeights?: Float32Array | null;
@@ -50,6 +51,7 @@ export interface MeshMeta {
   m_Normals?: Float32Array | number[] | null;
   m_Indices?: Uint32Array | number[] | null;
   m_UV0?: Float32Array | number[] | null;
+  m_UV1?: Float32Array | number[] | null;
   m_Skin?: Array<{
     boneIndex: [number, number, number, number];
     weight: [number, number, number, number];
@@ -134,6 +136,7 @@ export interface ViewerState {
   transformsByPathId: Map<string, UnityObject>;
   transformNodesByPathId: Map<string, TransformNode>;
   showSkeletons: boolean;
+  showOutlines: boolean;
   skeletonViewers: Array<{ dispose: () => void }>;
   physicsEnabled: boolean;
   physicsObserver: Observer<Scene> | null;
@@ -155,7 +158,8 @@ export interface EnvironmentInterface {
     path_id: PathId,
     source_file: string,
   ): Float32Array | undefined | null;
-  getMeshUVs(path_id: PathId, source_file: string): Float32Array | undefined | null;
+  getMeshUV0s(path_id: PathId, source_file: string): Float32Array | undefined | null;
+  getMeshUV1s(path_id: PathId, source_file: string): Float32Array | undefined | null;
   getMeshIndices(
     path_id: PathId,
     source_file: string,
@@ -209,6 +213,7 @@ export interface AnimationData {
 declare global {
   interface Window {
     onSkeletonToggle?: (v: boolean) => void;
+    onOutlineToggle?: (v: boolean) => void;
     onPhysicsToggle?: (v: boolean) => void;
     onAnimationToggle?: (v: boolean) => void;
     onLoopToggle?: (v: boolean) => void;

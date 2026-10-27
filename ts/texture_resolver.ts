@@ -6,6 +6,7 @@ import {
   type ExternalRefIndex,
 } from "./external_refs";
 import { getRawPathId } from "./id_space";
+import { readUnityMaterialInfo } from "./unity_toon";
 export const isValidPathId = (id: string | number | null | undefined) =>
   id !== undefined && id !== null && String(id) !== "0";
 const UNITY_RENDER_QUEUE = {
@@ -228,11 +229,26 @@ export function resolveRendererTextures(
             lookup.textures,
           );
           if (tex) {
+            const unity = readUnityMaterialInfo(
+              material as unknown as Record<string, JSONValue>,
+              texEnvs as Record<string, JSONValue>,
+              (texEnv) =>
+                texEnv
+                  ? resolveRef<TextureMeta>(
+                      texEnv.m_Texture as Record<string, JSONValue> | undefined,
+                      material,
+                      lookup.texturesByFile,
+                      lookup.textures,
+                    )
+                  : null,
+            );
             return {
               texture: tex,
               scale: bestTexEnv.m_Scale || { x: 1.0, y: 1.0 },
               offset: bestTexEnv.m_Offset || { x: 0.0, y: 0.0 },
               transparent: isMaterialTransparent(material),
+              materialId: String(material.path_id || ""),
+              unity: unity as never as JSONValue,
             };
           }
         }

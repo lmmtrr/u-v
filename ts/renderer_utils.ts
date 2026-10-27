@@ -4,8 +4,18 @@ import { Texture } from "@babylonjs/core/Materials/Textures/texture";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { MultiMaterial } from "@babylonjs/core/Materials/multiMaterial";
+import { Constants } from "@babylonjs/core/Engines/constants";
 import { state } from "./state";
 import { unityWorker } from "./engines/unity/worker_api";
+import {
+  UnityToonPlugin,
+  configureUnityToonPlugin,
+  getUnityToonMode,
+  readUnityOutline,
+  unpackUnityNormal,
+  usesFaceShadowMap,
+  type UnityMaterialInfo,
+} from "./unity_toon";
 import type { TextureMeta, MeshMeta, PathId, UnityObject } from "./types";
 type TextureInfo =
   | TextureMeta
@@ -14,6 +24,7 @@ type TextureInfo =
       scale?: { x: number; y: number };
       offset?: { x: number; y: number };
       transparent?: boolean | null;
+      unity?: UnityMaterialInfo;
     }
   | null;
 type TextureSlot = TextureInfo;
@@ -126,10 +137,11 @@ const resolveTexture = async (
   scene: Scene,
   textureCache?: Map<string, Texture>,
   allowAlpha?: boolean | null,
+  isNormalMap = false,
 ): Promise<Texture | null> => {
   if (!texData) return null;
   const alphaKey = allowAlpha === true ? "1" : allowAlpha === false ? "0" : "?";
-  const texKeyStr = `${texData.path_id || ""}|${alphaKey}`;
+  const texKeyStr = `${texData.path_id || ""}|${alphaKey}${isNormalMap ? "|n" : ""}`;
   if (textureCache && textureCache.has(texKeyStr)) {
     return textureCache.get(texKeyStr)!;
   }
@@ -137,9 +149,10 @@ const resolveTexture = async (
   const height = texData.m_Height || 0;
   const maxTexSize = scene?.getEngine()?.getCaps()?.maxTextureSize || 8192;
   if (width > 0 && width <= maxTexSize && height > 0 && height <= maxTexSize) {
-    const rgbaBytes = await toRGBABytes(texData, allowAlpha);
+    const rgbaBytes = await toRGBABytes(texData, isNormalMap ? true : allowAlpha);
     if (rgbaBytes) {
       if (rgbaBytes.length === width * height * 4) {
+        if (isNormalMap) unpackUnityNormal(rgbaBytes);
         const originalName = texData?.name || texData?.m_Name || "";
         const dataUrl = rgbaToDataURL(rgbaBytes, width, height);
         const texture = Texture.CreateFromBase64String(
@@ -169,6 +182,97 @@ const hasCustomTransform = (texInfo: TextureInfo): boolean => {
   const hasOffset = offset && (offset.x !== 0.0 || offset.y !== 0.0);
   return !!(hasScale || hasOffset);
 };
+const applyTextureTransform = (
+  texture: Texture,
+  texInfo: TextureInfo | undefined,
+): Texture => {
+  if (!hasCustomTransform(texInfo ?? null)) {
+    texture.uScale = 1.0;
+    texture.vScale = 1.0;
+    texture.uOffset = 0.0;
+    texture.vOffset = 0.0;
+    return texture;
+  }
+  const custom = texInfo as { scale?: { x: number; y: number }; offset?: { x: number; y: number } };
+  const transformed = texture.clone();
+  transformed.uScale = custom.scale?.x ?? 1.0;
+  transformed.vScale = custom.scale?.y ?? 1.0;
+  transformed.uOffset = custom.offset?.x ?? 0.0;
+  transformed.vOffset = custom.offset?.y ?? 0.0;
+  return transformed;
+};
+const applyUnityToon = async (
+  mat: StandardMaterial,
+  texInfo: TextureInfo | undefined,
+  scene: Scene,
+  textureCache: Map<string, Texture>,
+): Promise<void> => {
+  const info =
+    texInfo && "unity" in texInfo ? (texInfo.unity as UnityMaterialInfo | undefined) : undefined;
+  const mode = getUnityToonMode(info);
+  if (!info || !mode) return;
+  const plugin = new UnityToonPlugin(mat);
+  configureUnityToonPlugin(plugin, info, mode);
+  if (mode === "additive" || mode === "multiply") {
+    mat.transparencyMode = Material.MATERIAL_ALPHABLEND;
+    mat.alphaMode = mode === "additive" ? Constants.ALPHA_ADD : Constants.ALPHA_MULTIPLY;
+    mat.disableDepthWrite = true;
+    return;
+  }
+  const [ramp, rmo, normal, face] = await Promise.all([
+    resolveTexture(info.ramp, scene, textureCache, true),
+    resolveTexture(info.rmo, scene, textureCache, false),
+    resolveTexture(info.normal, scene, textureCache, false, true),
+    usesFaceShadowMap(info) ? resolveTexture(info.blend, scene, textureCache, true) : null,
+  ]);
+  if (ramp) {
+    ramp.wrapU = Texture.CLAMP_ADDRESSMODE;
+    ramp.wrapV = Texture.CLAMP_ADDRESSMODE;
+    plugin.rampTexture = ramp;
+  }
+  if (rmo) plugin.rmoTexture = applyTextureTransform(rmo, texInfo);
+  if (face) plugin.faceTexture = face;
+  if (normal) mat.bumpTexture = applyTextureTransform(normal, texInfo);
+  const baseAlpha = (info.colors._BaseColor || info.colors._Color)?.a ?? 1;
+  if (info.floats._BlendMode !== undefined && baseAlpha < 0.999) mat.alpha = baseAlpha;
+};
+const configureMaterial = async (
+  mat: StandardMaterial,
+  texInfo: TextureInfo | undefined,
+  scene: Scene,
+  textureCache: Map<string, Texture>,
+): Promise<void> => {
+  mat.specularColor = new Color3(0, 0, 0);
+  mat.specularPower = 0;
+  mat.backFaceCulling = false;
+  mat.twoSidedLighting = true;
+  mat.emissiveColor = new Color3(0.1, 0.1, 0.1);
+  const texData =
+    texInfo && "texture" in texInfo ? texInfo.texture : (texInfo as TextureMeta | undefined);
+  const resolvedTexture = await resolveTexture(
+    texData as TextureMeta | undefined,
+    scene,
+    textureCache,
+    texInfo && "transparent" in texInfo ? texInfo.transparent : null,
+  );
+  if (resolvedTexture) {
+    mat.diffuseTexture = applyTextureTransform(resolvedTexture, texInfo);
+  }
+  await applyUnityToon(mat, texInfo, scene, textureCache);
+  const info =
+    texInfo && "unity" in texInfo ? (texInfo.unity as UnityMaterialInfo | undefined) : undefined;
+  const outline = info ? readUnityOutline(info) : null;
+  if (outline) {
+    mat.metadata = {
+      ...mat.metadata,
+      unityOutline: {
+        unit: outline.unit,
+        width: outline.width,
+        color: new Color3(outline.r, outline.g, outline.b),
+      },
+    };
+  }
+};
 export const createMaterial = async (
   textures: TextureSlot[],
   textureIdsKey: string,
@@ -180,37 +284,7 @@ export const createMaterial = async (
     return materialCache.get(textureIdsKey) as StandardMaterial;
   }
   const mat = new StandardMaterial("mat_" + textureIdsKey, scene);
-  mat.specularColor = new Color3(0, 0, 0);
-  mat.specularPower = 0;
-  mat.backFaceCulling = false;
-  mat.twoSidedLighting = true;
-  mat.emissiveColor = new Color3(0.1, 0.1, 0.1);
-  const texInfo = textures[0] as TextureInfo | undefined;
-  const texData =
-    texInfo && "texture" in texInfo ? texInfo.texture : (texInfo as TextureMeta | undefined);
-  const resolvedTexture = await resolveTexture(
-    texData as TextureMeta | undefined,
-    scene,
-    textureCache,
-    texInfo && "transparent" in texInfo ? texInfo.transparent : null,
-  );
-  if (resolvedTexture) {
-    let activeTexture = resolvedTexture;
-    if (hasCustomTransform(texInfo ?? null)) {
-      activeTexture = resolvedTexture.clone();
-      const custom = texInfo as { scale?: { x: number; y: number }; offset?: { x: number; y: number } };
-      activeTexture.uScale = custom.scale?.x ?? 1.0;
-      activeTexture.vScale = custom.scale?.y ?? 1.0;
-      activeTexture.uOffset = custom.offset?.x ?? 0.0;
-      activeTexture.vOffset = custom.offset?.y ?? 0.0;
-    } else {
-      activeTexture.uScale = 1.0;
-      activeTexture.vScale = 1.0;
-      activeTexture.uOffset = 0.0;
-      activeTexture.vOffset = 0.0;
-    }
-    mat.diffuseTexture = activeTexture;
-  }
+  await configureMaterial(mat, textures[0] as TextureInfo | undefined, scene, textureCache);
   materialCache.set(textureIdsKey, mat);
   return mat;
 };
@@ -232,38 +306,9 @@ export const createMultiMaterial = async (
   );
   for (let si = 0; si < subMeshes.length; si++) {
     const subMat = new StandardMaterial(`mat_${si}`, scene);
-    subMat.specularColor = new Color3(0, 0, 0);
-    subMat.specularPower = 0;
-    subMat.backFaceCulling = false;
-    subMat.twoSidedLighting = true;
-    subMat.emissiveColor = new Color3(0.1, 0.1, 0.1);
     const texInfo =
       (textures[si] as TextureInfo) || (textures[0] as TextureInfo);
-    const texData =
-      texInfo && "texture" in texInfo ? texInfo.texture : (texInfo as TextureMeta | undefined);
-    const resolvedTexture = await resolveTexture(
-      texData as TextureMeta | undefined,
-      scene,
-      textureCache,
-      texInfo && "transparent" in texInfo ? texInfo.transparent : null,
-    );
-    if (resolvedTexture) {
-      let activeTexture = resolvedTexture;
-      if (hasCustomTransform(texInfo ?? null)) {
-        activeTexture = resolvedTexture.clone();
-        const custom = texInfo as { scale?: { x: number; y: number }; offset?: { x: number; y: number } };
-        activeTexture.uScale = custom.scale?.x ?? 1.0;
-        activeTexture.vScale = custom.scale?.y ?? 1.0;
-        activeTexture.uOffset = custom.offset?.x ?? 0.0;
-        activeTexture.vOffset = custom.offset?.y ?? 0.0;
-      } else {
-        activeTexture.uScale = 1.0;
-        activeTexture.vScale = 1.0;
-        activeTexture.uOffset = 0.0;
-        activeTexture.vOffset = 0.0;
-      }
-      subMat.diffuseTexture = activeTexture;
-    }
+    await configureMaterial(subMat, texInfo, scene, textureCache);
     multiMat.subMaterials.push(subMat);
   }
   materialCache.set(textureIdsKey, multiMat);

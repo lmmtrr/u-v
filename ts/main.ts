@@ -56,6 +56,9 @@ setupFileInput((files) => loadFiles(files, null, state, onFilesLoaded));
 window.onSkeletonToggle = (v: boolean) => {
   sceneManager.toggleSkeletonViewer(v);
 };
+window.onOutlineToggle = (v: boolean) => {
+  sceneManager.toggleOutlines(v);
+};
 window.onPhysicsToggle = (v: boolean) => {
   state.physicsEnabled = v;
 };

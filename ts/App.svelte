@@ -11,6 +11,7 @@
   export let createdPathIds: Set<string> = new Set();
   export let partTranslations: Map<string, { x: number; y: number; z: number }> = new Map();
   export let showSkeletons = false;
+  export let showOutlines = false;
   export let physicsEnabled = false;
   export let animationPlaying = false;
   export let currentAnimationIndex = -1;
@@ -32,6 +33,7 @@
     if (newProps.createdPathIds !== undefined) createdPathIds = newProps.createdPathIds as Set<string>;
     if (newProps.partTranslations !== undefined) partTranslations = newProps.partTranslations as Map<string, { x: number; y: number; z: number }>;
     if (newProps.showSkeletons !== undefined) showSkeletons = newProps.showSkeletons as boolean;
+    if (newProps.showOutlines !== undefined) showOutlines = newProps.showOutlines as boolean;
     if (newProps.physicsEnabled !== undefined) physicsEnabled = newProps.physicsEnabled as boolean;
     if (newProps.animationPlaying !== undefined) animationPlaying = newProps.animationPlaying as boolean;
     if (newProps.currentAnimationIndex !== undefined) currentAnimationIndex = newProps.currentAnimationIndex as number;
@@ -590,6 +592,20 @@
           }}
         />
         <label for="skeleton-toggle" style="cursor: pointer; user-select: none;">Show Skeletons</label>
+      </div>
+      <div class="ui-control-row">
+        <input
+          type="checkbox"
+          class="ui-checkbox"
+          id="outline-toggle"
+          bind:checked={showOutlines}
+          on:change={() => {
+            if (window.onOutlineToggle) {
+              window.onOutlineToggle(showOutlines);
+            }
+          }}
+        />
+        <label for="outline-toggle" style="cursor: pointer; user-select: none;">Show Outlines</label>
       </div>
       {#if hasPhysicsBones}
         <div class="ui-control-row">

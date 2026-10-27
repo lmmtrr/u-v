@@ -13,6 +13,7 @@ let savedProps = {
   createdPathIds: new Set<string>(),
   partTranslations: new Map<string, { x: number; y: number; z: number }>(),
   showSkeletons: false,
+  showOutlines: false,
   physicsEnabled: false,
   animationPlaying: false,
   currentAnimationIndex: -1,

@@ -31,6 +31,7 @@ export const state: ViewerState = {
   transformsByPathId: new Map<string, UnityObject>(),
   transformNodesByPathId: new Map<string, TransformNode>(),
   showSkeletons: false,
+  showOutlines: false,
   skeletonViewers: [] as Array<{ dispose: () => void }>,
   physicsEnabled: false,
   physicsObserver: null as Observer<Scene> | null,

@@ -17,6 +17,7 @@ import { AnimationGroup } from "@babylonjs/core/Animations/animationGroup";
 import { GLTF2Export } from "@babylonjs/serializers/glTF/2.0/glTFSerializer";
 import type { Observer } from "@babylonjs/core/Misc/observable";
 import { state } from "./state";
+import { applyOutlines, disposeOutlines } from "./outline";
 import {
   createAnimationUI,
   createFileListUI,
@@ -659,6 +660,10 @@ export class SceneManager {
       }
     }
   };
+  public toggleOutlines = (v: boolean) => {
+    state.showOutlines = v;
+    applyOutlines(this.scene, state.createdMeshes, v);
+  };
   public async rebuildScene(skipUIUpdate = false) {
     this.cleanUpSceneResources();
     const builtScenes: EngineScene[] = [];
@@ -668,6 +673,7 @@ export class SceneManager {
         builtScenes.push(await engine.buildScene(this.scene, files));
     }
     state.createdMeshes = builtScenes.flatMap((built) => built.meshes);
+    applyOutlines(this.scene, state.createdMeshes, state.showOutlines);
     state.genericPartAttachments = builtScenes.flatMap(
       (built) => built.partAttachments,
     );
@@ -1050,6 +1056,7 @@ export class SceneManager {
       }
       updateProgress(45, "Preparing scene serialization...");
       this.pauseSceneObserversForExport(exportRestores);
+      disposeOutlines(this.scene);
       this.alignSkinRootsForExport(exportRestores);
       this.prepareMaterialsForExport(exportRestores);
       this.prepareMeshDataForExport(exportRestores);
@@ -1114,6 +1121,7 @@ export class SceneManager {
         } catch {}
       });
       exportRestores.length = 0;
+      applyOutlines(this.scene, state.createdMeshes, state.showOutlines);
       hideProgress();
     }
   }

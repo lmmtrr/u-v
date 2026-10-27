@@ -170,7 +170,8 @@ export async function instantiateMesh(
       if (data) {
         if (data.vertices) renderer.transformedPositions = data.vertices as never as JSONValue;
         if (data.normals) renderer.transformedNormals = data.normals as never as JSONValue;
-        if (data.uvs) mesh_data.m_UV0 = data.uvs;
+        if (data.uv0) mesh_data.m_UV0 = data.uv0;
+        if (data.uv1) mesh_data.m_UV1 = data.uv1;
         if (data.indices) mesh_data.m_Indices = data.indices;
         if (data.skinIndices && data.skinWeights) {
           const skinData = [];
@@ -573,6 +574,7 @@ export async function instantiateMesh(
   vertexData.indices = transformedIndices;
   if (transformedNormals) vertexData.normals = transformedNormals;
   if (mesh_data.m_UV0) vertexData.uvs = mesh_data.m_UV0;
+  if (mesh_data.m_UV1) vertexData.uvs2 = mesh_data.m_UV1;
   vertexData.applyToMesh(customMesh);
   const hasNormals = transformedNormals && transformedNormals.length > 0;
   if (!hasNormals) {
@@ -626,13 +628,13 @@ export async function instantiateMesh(
       }
     });
   }
-  const textures = (renderer.textures as Array<{ texture?: { path_id?: string }; path_id?: string; transparent?: boolean | null } | null>) || [];
+  const textures = (renderer.textures as Array<{ texture?: { path_id?: string }; path_id?: string; transparent?: boolean | null; materialId?: string } | null>) || [];
   const textureIdsKey = textures
     .map((t) => {
       if (!t) return "0";
       const id = t.texture ? t.texture.path_id : t.path_id;
       const alpha = t.transparent === true ? "1" : t.transparent === false ? "0" : "?";
-      return `${id}:${alpha}`;
+      return `${id}:${alpha}${t.materialId ? `:${t.materialId}` : ""}`;
     })
     .join(",");
   if (subMeshDefinitions.length > 1) {

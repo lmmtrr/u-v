@@ -194,6 +194,25 @@ pub(crate) fn decompress_texture(width: usize, height: usize, format: i32, image
         12 => {
             success = texture2ddecoder::decode_bc3(safe_image_data, aligned_w, aligned_h, &mut decompressed).is_ok();
         }
+        17 | 20 => {
+            let bytes_per_channel = if format == 17 { 2 } else { 4 };
+            let to_u8 = |c: &[u8]| -> u8 {
+                let f = if bytes_per_channel == 2 {
+                    unityfs::classes::mesh::f16_to_f32(u16::from_le_bytes([c[0], c[1]]))
+                } else {
+                    f32::from_le_bytes([c[0], c[1], c[2], c[3]])
+                };
+                (f.clamp(0.0, 1.0) * 255.0 + 0.5) as u8
+            };
+            for (i, px) in safe_image_data.chunks_exact(bytes_per_channel * 4).enumerate().take(width * height) {
+                let r = to_u8(&px[0..bytes_per_channel]);
+                let g = to_u8(&px[bytes_per_channel..bytes_per_channel * 2]);
+                let b = to_u8(&px[bytes_per_channel * 2..bytes_per_channel * 3]);
+                let a = to_u8(&px[bytes_per_channel * 3..bytes_per_channel * 4]);
+                decompressed[i] = u32::from_le_bytes([b, g, r, a]);
+            }
+            success = true;
+        }
         14 => {
             for (i, chunk) in safe_image_data.chunks_exact(4).enumerate().take(width * height) {
                 decompressed[i] = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
@@ -1235,7 +1254,7 @@ impl Environment {
         Some(Float32Array::from(flat.as_slice()))
     }
     #[wasm_bindgen]
-    pub fn getMeshUVs(&self, path_id: JsValue, source_file: JsValue) -> Option<Float32Array> {
+    pub fn getMeshUV0s(&self, path_id: JsValue, source_file: JsValue) -> Option<Float32Array> {
         let path_id = Self::parse_path_id(&path_id)?;
         let src_file = source_file.as_string();
         let val = self.read_object(path_id, src_file, Some(43))?;
@@ -1246,6 +1265,15 @@ impl Environment {
             flat.push(u);
             flat.push(v);
         }
+        Some(Float32Array::from(flat.as_slice()))
+    }
+    #[wasm_bindgen]
+    pub fn getMeshUV1s(&self, path_id: JsValue, source_file: JsValue) -> Option<Float32Array> {
+        let path_id = Self::parse_path_id(&path_id)?;
+        let src_file = source_file.as_string();
+        let val = self.read_object(path_id, src_file, Some(43))?;
+        let mesh = Mesh::try_from_unity_value(&val).ok()?;
+        let flat = extract_uv_channel(&mesh, 1)?;
         Some(Float32Array::from(flat.as_slice()))
     }
     #[wasm_bindgen]
@@ -1538,4 +1566,56 @@ fn transform_normal(m: &[f32; 16], x: f32, y: f32, z: f32) -> (f32, f32, f32) {
         let rz = x * m[2] + y * m[6] + z * m[10];
         (rx, ry, rz)
     }
+}
+fn extract_uv_channel(mesh: &Mesh, uv_index: usize) -> Option<Vec<f32>> {
+    let vertex_count = mesh.get_vertex_count();
+    if let Some(compressed) = mesh.m_CompressedMesh.as_ref() {
+        if let Some(uv_pb) = compressed.m_UV.as_ref().filter(|uv| uv.m_NumItems > 0) {
+            let uv_info = compressed.m_UVInfo.unwrap_or(0);
+            let mut offset = 0;
+            for channel in 0..8 {
+                let bits = (uv_info >> (channel * 4)) & 15;
+                if bits & 4 == 0 {
+                    continue;
+                }
+                let dim = 1 + (bits & 3) as usize;
+                if channel == uv_index {
+                    let floats = uv_pb.unpack_floats(offset, vertex_count * dim);
+                    let mut flat = Vec::with_capacity(vertex_count * 2);
+                    for i in 0..vertex_count {
+                        flat.push(floats.get(i * dim).copied().unwrap_or(0.0));
+                        flat.push(if dim >= 2 { floats.get(i * dim + 1).copied().unwrap_or(0.0) } else { 0.0 });
+                    }
+                    return Some(flat);
+                }
+                offset += dim * vertex_count;
+            }
+            return None;
+        }
+    }
+    let ch = mesh.m_VertexData.m_Channels.get(4 + uv_index)?;
+    if (ch.dimension & 0xF) < 2 {
+        return None;
+    }
+    let data = &mesh.m_VertexData.m_DataSize.as_ref().or(mesh.m_VertexData._typelessdata.as_ref())?.0;
+    let stride = mesh.get_stream_stride(ch.stream);
+    let stream_offset = mesh.get_stream_offset(ch.stream);
+    let size = Mesh::get_format_size(ch.format);
+    let count = mesh.m_VertexData.m_VertexCount as usize;
+    let mut flat = Vec::with_capacity(count * 2);
+    for i in 0..count {
+        let base = stream_offset + i * stride + ch.offset as usize;
+        for c in 0..2 {
+            let at = base + c * size;
+            let b = data.get(at..at + size)?;
+            flat.push(match ch.format {
+                0 => f32::from_le_bytes([b[0], b[1], b[2], b[3]]),
+                1 => unityfs::classes::mesh::f16_to_f32(u16::from_le_bytes([b[0], b[1]])),
+                2 => b[0] as f32 / 255.0,
+                4 => u16::from_le_bytes([b[0], b[1]]) as f32 / 65535.0,
+                _ => return None,
+            });
+        }
+    }
+    Some(flat)
 }

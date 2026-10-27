@@ -52,7 +52,8 @@ export const unityHandlers: WorkerHandlers = {
         ? env.getTransformedMeshNormals(pathId, sourceFileName, toFloat32(normalMatrix))
         : env.getMeshNormals(pathId, sourceFileName)
     ) as Float32Array | null;
-    const uvs = env.getMeshUVs(pathId, sourceFileName) as Float32Array | null;
+    const uv0 = env.getMeshUV0s(pathId, sourceFileName) as Float32Array | null;
+    const uv1 = env.getMeshUV1s(pathId, sourceFileName) as Float32Array | null;
     const indices = env.getMeshIndices(pathId, sourceFileName) as Uint32Array | null;
     const skinIndices = env.getMeshSkinIndices(pathId, sourceFileName) as Uint32Array | null;
     const skinWeights = env.getMeshSkinWeights(pathId, sourceFileName) as Float32Array | null;
@@ -66,9 +67,13 @@ export const unityHandlers: WorkerHandlers = {
       payload.normals = normals;
       transfer.push(normals.buffer as ArrayBuffer);
     }
-    if (uvs) {
-      payload.uvs = uvs;
-      transfer.push(uvs.buffer as ArrayBuffer);
+    if (uv0) {
+      payload.uv0 = uv0;
+      transfer.push(uv0.buffer as ArrayBuffer);
+    }
+    if (uv1) {
+      payload.uv1 = uv1;
+      transfer.push(uv1.buffer as ArrayBuffer);
     }
     if (indices) {
       payload.indices = indices;
