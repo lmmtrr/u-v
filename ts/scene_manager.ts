@@ -1023,53 +1023,57 @@ export class SceneManager {
         animatedNodes.forEach((node) => {
           nodeKeys.set(node, { posKeys: [], rotKeys: [], scaleKeys: [] });
         });
+        const channelFlags = new Map<
+          TransformNode,
+          { hasPos: boolean; hasRot: boolean; hasScale: boolean }
+        >();
+        animatedNodes.forEach((node) => {
+          const isAttachment = attachmentNodes.has(node);
+          channelFlags.set(node, {
+            hasPos: isAttachment,
+            hasRot: isAttachment,
+            hasScale: false,
+          });
+        });
+        animData.bones.forEach((boneData, bone) => {
+          const bNode =
+            "getTransformNode" in bone
+              ? (bone as Bone).getTransformNode()
+              : (bone as TransformNode);
+          const flags = bNode && channelFlags.get(bNode as TransformNode);
+          if (!flags) return;
+          if (boneData.position.x || boneData.position.y || boneData.position.z)
+            flags.hasPos = true;
+          if (
+            boneData.rotation.x ||
+            boneData.rotation.y ||
+            boneData.rotation.z ||
+            boneData.rotation.w
+          )
+            flags.hasRot = true;
+          if (boneData.scale.x || boneData.scale.y || boneData.scale.z)
+            flags.hasScale = true;
+        });
+        animData.muscles.forEach((muscleCurves, bone) => {
+          const bNode =
+            "getTransformNode" in bone
+              ? (bone as Bone).getTransformNode()
+              : (bone as TransformNode);
+          const flags = bNode && channelFlags.get(bNode as TransformNode);
+          if (!flags) return;
+          flags.hasRot = true;
+          if (
+            muscleCurves.some(
+              (mc) => mc.humanBoneIndex === 0 && mc.axis.startsWith("pos_"),
+            )
+          )
+            flags.hasPos = true;
+        });
         for (let f = 0; f <= maxFrame; f++) {
           evaluateFrame(f);
           animatedNodes.forEach((node) => {
             const keys = nodeKeys.get(node)!;
-            let hasPos = attachmentNodes.has(node);
-            let hasRot = attachmentNodes.has(node);
-            let hasScale = false;
-            animData.bones.forEach((boneData, bone) => {
-              const bNode =
-                "getTransformNode" in bone
-                  ? (bone as Bone).getTransformNode()
-                  : (bone as TransformNode);
-              if (bNode === node) {
-                if (
-                  boneData.position.x ||
-                  boneData.position.y ||
-                  boneData.position.z
-                )
-                  hasPos = true;
-                if (
-                  boneData.rotation.x ||
-                  boneData.rotation.y ||
-                  boneData.rotation.z ||
-                  boneData.rotation.w
-                )
-                  hasRot = true;
-                if (boneData.scale.x || boneData.scale.y || boneData.scale.z)
-                  hasScale = true;
-              }
-            });
-            animData.muscles.forEach((muscleCurves, bone) => {
-              const bNode =
-                "getTransformNode" in bone
-                  ? (bone as Bone).getTransformNode()
-                  : (bone as TransformNode);
-              if (bNode === node) {
-                hasRot = true;
-                if (
-                  muscleCurves.some(
-                    (mc) =>
-                      mc.humanBoneIndex === 0 && mc.axis.startsWith("pos_"),
-                  )
-                ) {
-                  hasPos = true;
-                }
-              }
-            });
+            const { hasPos, hasRot, hasScale } = channelFlags.get(node)!;
             if (hasPos) {
               keys.posKeys.push({ frame: f, value: node.position.clone() });
             }
