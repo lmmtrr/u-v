@@ -136,6 +136,7 @@ export class SceneManager {
     const file = state.loadedFiles[fileIndex];
     if (!file) return;
     const targetId = partId;
+    const targetIsOrphan = String(targetId || "").startsWith("orphan_");
     const matchingRenderers: Array<Record<string, JSONValue>> = [];
     file.objects.forEach((obj) => {
       const data = (obj?.SkinnedMeshRenderer ||
@@ -151,7 +152,10 @@ export class SceneManager {
       const isMatch =
         (targetId &&
           (pathIdStr === targetId || `orphan_${pathIdStr}` === targetId)) ||
-        (partName && displayName && displayName === partName);
+        ((!obj?.Mesh || targetIsOrphan) &&
+          partName &&
+          displayName &&
+          displayName === partName);
       if (isMatch) {
         matchingRenderers.push(data);
       }
@@ -160,6 +164,8 @@ export class SceneManager {
       const matchingMeshes = state.createdMeshes.filter((mesh) => {
         if (!mesh.metadata) return false;
         const meshPathIdStr = String(mesh.metadata.rendererPathId);
+        const canMatchByName =
+          targetIsOrphan || !meshPathIdStr.startsWith("orphan_");
         return matchingRenderers.some((data) => {
           const pathIdStr = String(data.path_id || "");
           const meshMeta = data.mesh as Record<string, JSONValue> | undefined;
@@ -174,9 +180,10 @@ export class SceneManager {
           const normDataName = String(data.name || "").toLowerCase();
           const normPartName = (partName || "").toLowerCase();
           const nameMatch =
-            (normMeshName && normDispName && normMeshName === normDispName) ||
-            (normMeshName && normDataName && normMeshName === normDataName) ||
-            (normMeshName && normPartName && normMeshName === normPartName);
+            canMatchByName &&
+            ((normMeshName && normDispName && normMeshName === normDispName) ||
+              (normMeshName && normDataName && normMeshName === normDataName) ||
+              (normMeshName && normPartName && normMeshName === normPartName));
           return idMatch || nameMatch;
         });
       });
@@ -232,53 +239,29 @@ export class SceneManager {
           el.classList.toggle("active", nextEnabled);
         }
       });
-      state.createdMeshes.forEach((mesh) => {
-        if (mesh.metadata) {
-          const meshPathIdStr = String(mesh.metadata.rendererPathId);
-          const hasMatch = matchingRenderers.some((data) => {
-            const pathIdStr = String(data.path_id || "");
-            const meshMeta = data.mesh as Record<string, JSONValue> | undefined;
-            const displayName = String(
-              data.name || meshMeta?.name || `part_${pathIdStr}`,
-            );
-            const idMatch =
-              meshPathIdStr === pathIdStr ||
-              meshPathIdStr === `orphan_${pathIdStr}`;
-            const normMeshName = (mesh.name || "").toLowerCase();
-            const normDispName = (displayName || "").toLowerCase();
-            const normDataName = String(data.name || "").toLowerCase();
-            const normPartName = (partName || "").toLowerCase();
-            const nameMatch =
-              (normMeshName && normDispName && normMeshName === normDispName) ||
-              (normMeshName && normDataName && normMeshName === normDataName) ||
-              (normMeshName && normPartName && normMeshName === normPartName);
-            return idMatch || nameMatch;
-          });
-          if (hasMatch) {
-            if (!mesh.metadata.originalSubMeshes) {
-              mesh.metadata.originalSubMeshes = [...mesh.subMeshes];
-            }
-            const originalSubMeshes = mesh.metadata.originalSubMeshes as any[];
-            if (!mesh.metadata.visibleSubmeshIndices) {
-              mesh.metadata.visibleSubmeshIndices = new Set(
-                originalSubMeshes
-                  .map((sub, idx) => (mesh.subMeshes.includes(sub) ? idx : -1))
-                  .filter((idx) => idx !== -1),
-              );
-            }
-            if (nextEnabled) {
-              originalSubMeshes.forEach((_, idx) =>
-                mesh.metadata.visibleSubmeshIndices.add(idx),
-              );
-            } else {
-              mesh.metadata.visibleSubmeshIndices.clear();
-            }
-            mesh.subMeshes = originalSubMeshes.filter((_, idx) =>
-              mesh.metadata.visibleSubmeshIndices.has(idx),
-            );
-            mesh.setEnabled(nextEnabled);
-          }
+      matchingMeshes.forEach((mesh) => {
+        if (!mesh.metadata.originalSubMeshes) {
+          mesh.metadata.originalSubMeshes = [...mesh.subMeshes];
         }
+        const originalSubMeshes = mesh.metadata.originalSubMeshes as any[];
+        if (!mesh.metadata.visibleSubmeshIndices) {
+          mesh.metadata.visibleSubmeshIndices = new Set(
+            originalSubMeshes
+              .map((sub, idx) => (mesh.subMeshes.includes(sub) ? idx : -1))
+              .filter((idx) => idx !== -1),
+          );
+        }
+        if (nextEnabled) {
+          originalSubMeshes.forEach((_, idx) =>
+            mesh.metadata.visibleSubmeshIndices.add(idx),
+          );
+        } else {
+          mesh.metadata.visibleSubmeshIndices.clear();
+        }
+        mesh.subMeshes = originalSubMeshes.filter((_, idx) =>
+          mesh.metadata.visibleSubmeshIndices.has(idx),
+        );
+        mesh.setEnabled(nextEnabled);
       });
       updateUIState({ loadedFiles: [...state.loadedFiles] });
     }
@@ -319,7 +302,10 @@ export class SceneManager {
         });
       }
       const matchingRenderers: Array<Record<string, JSONValue>> = [];
-      const fullyVisibleByRenderer = new Map<Record<string, JSONValue>, boolean>();
+      const fullyVisibleByRenderer = new Map<
+        Record<string, JSONValue>,
+        boolean
+      >();
       file.objects.forEach((obj) => {
         const data = (obj?.SkinnedMeshRenderer ||
           obj?.MeshRenderer ||
@@ -333,7 +319,7 @@ export class SceneManager {
           const matchesPath =
             pathIds &&
             pathIds.some((pid) => this.isApproxPathIdMatch(pid, pathIdStr));
-          const matchesName = pathIds && namesToToggle.has(name);
+          const matchesName = pathIds && !obj?.Mesh && namesToToggle.has(name);
           if (pathIds && !matchesPath && !matchesName) return;
           data.m_Enabled = nextEnabled;
           matchingRenderers.push(data);
@@ -620,7 +606,12 @@ export class SceneManager {
       );
     let result: AnimationData | Promise<AnimationData>;
     try {
-      result = engine.buildAnimation(clip, state.createdMeshes, this.scene, state);
+      result = engine.buildAnimation(
+        clip,
+        state.createdMeshes,
+        this.scene,
+        state,
+      );
     } catch (err) {
       reportFailure(err);
       return;
@@ -659,7 +650,9 @@ export class SceneManager {
     if (state.showSkeletons !== v) {
       state.showSkeletons = v;
       if (v) {
-        this.scene.skeletons.forEach((skeleton) => this.addSkeletonViewer(skeleton));
+        this.scene.skeletons.forEach((skeleton) =>
+          this.addSkeletonViewer(skeleton),
+        );
       } else {
         state.skeletonViewers.forEach((viewer) => viewer.dispose());
         state.skeletonViewers = [];
@@ -671,10 +664,13 @@ export class SceneManager {
     const builtScenes: EngineScene[] = [];
     for (const engine of engines) {
       const files = filesOwnedBy(engine, state.loadedFiles);
-      if (files.length > 0) builtScenes.push(await engine.buildScene(this.scene, files));
+      if (files.length > 0)
+        builtScenes.push(await engine.buildScene(this.scene, files));
     }
     state.createdMeshes = builtScenes.flatMap((built) => built.meshes);
-    state.genericPartAttachments = builtScenes.flatMap((built) => built.partAttachments);
+    state.genericPartAttachments = builtScenes.flatMap(
+      (built) => built.partAttachments,
+    );
     if (state.showSkeletons) {
       builtScenes.forEach((built) =>
         built.skeletons.forEach((skeleton) => this.addSkeletonViewer(skeleton)),
@@ -702,7 +698,9 @@ export class SceneManager {
         });
       }
     }
-    const physicsEntries = builtScenes.flatMap((built) => built.createPhysics());
+    const physicsEntries = builtScenes.flatMap((built) =>
+      built.createPhysics(),
+    );
     if (physicsEntries.length > 0) {
       state.physicsObserver = createPhysicsObserver(this.scene, physicsEntries);
     }
@@ -774,7 +772,12 @@ export class SceneManager {
           if (attachments.length === 0) return;
           preparedSkeletons.clear();
           attachments.forEach(
-            ({ partNode, humanBone, partBindAbsolute, humanBoneBindAbsolute }) => {
+            ({
+              partNode,
+              humanBone,
+              partBindAbsolute,
+              humanBoneBindAbsolute,
+            }) => {
               const humanSkeleton = humanBone.getSkeleton();
               if (!preparedSkeletons.has(humanSkeleton)) {
                 humanSkeleton.prepare(true);
@@ -1337,7 +1340,9 @@ export class SceneManager {
       const indices = mesh.getIndices();
       if (!indices) return;
       const totalVertices = mesh.getTotalVertices();
-      const ordered = [...subMeshes].sort((a, b) => a.indexStart - b.indexStart);
+      const ordered = [...subMeshes].sort(
+        (a, b) => a.indexStart - b.indexStart,
+      );
       const runs: Array<{
         materialIndex: number;
         start: number;
