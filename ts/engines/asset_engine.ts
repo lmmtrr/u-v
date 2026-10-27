@@ -31,6 +31,8 @@ export abstract class AssetEngine {
 
   resetPose(_meshes: Mesh[]): void {}
 
+  release(_file: LoadedFile): void {}
+
   owns(file: LoadedFile): boolean {
     return file.engine === this.id;
   }

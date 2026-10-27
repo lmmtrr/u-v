@@ -6,7 +6,10 @@ import type { AnimationClipItem, AnimationData, LoadedFile, ViewerState } from "
 import { loadUnrealFiles } from "./loader";
 import { buildUnrealMeshes } from "./scene";
 import { buildUnrealSpringBones } from "./physics";
+import { unrealData } from "./file_data";
+import { unrealWorker } from "./worker_api";
 import {
+  forgetUnrealSamples,
   buildUnrealAnimationData,
   resetUnrealPose,
   unrealAnimationClips,
@@ -39,6 +42,13 @@ export class UnrealEngine extends AssetEngine {
 
   buildAnimation(clip: AnimationClipItem, meshes: Mesh[]): Promise<AnimationData> {
     return buildUnrealAnimationData(clip.clipData as never as UnrealClipData, meshes);
+  }
+
+  release(file: LoadedFile): void {
+    const data = unrealData(file);
+    if (!data) return;
+    forgetUnrealSamples(data.envId);
+    unrealWorker.freeEnvironment(data.envId).catch(() => {});
   }
 
   resetPose(meshes: Mesh[]): void {

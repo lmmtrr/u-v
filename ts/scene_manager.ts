@@ -705,12 +705,11 @@ export class SceneManager {
   };
   public clearModel = (index: number) => {
     const file = state.loadedFiles[index];
-    if (file) {
+    if (file && !file.removedFromUI) {
       file.removedFromUI = true;
-      file.objects = file.objects.filter((obj) => {
-        const type = Object.keys(obj)[0];
-        return type !== "SkinnedMeshRenderer" && type !== "Mesh";
-      });
+      engines.find((engine) => engine.owns(file))?.release(file);
+      file.objects = [];
+      file.engineData = undefined;
       this.rebuildScene();
     }
   };

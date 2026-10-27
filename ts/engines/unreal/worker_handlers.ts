@@ -143,6 +143,10 @@ export const unrealHandlers: WorkerHandlers = {
       transfer: transferables,
     };
   },
+  FREE_UNREAL_ENV: ({ envId }: { envId: number }) => {
+    unrealEnvironments.get(envId)?.free();
+    unrealEnvironments.delete(envId);
+  },
   LOAD_UNREAL_ANIMATION: ({ envId, path }: { envId: number; path: string }) => {
     const env = unrealEnvironments.get(envId);
     if (!env) throw new Error(`Unreal environment ${envId} not found.`);

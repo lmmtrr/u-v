@@ -30,6 +30,8 @@ export const unityWorker = {
       matrix,
       normalMatrix,
     } as never as JSONValue),
+  freeFile: (fileIndex: number): Promise<void> =>
+    workerClient.request<void>("FREE_FILE", { fileIndex }),
   getTextureData: (
     fileIndex: number,
     pathId: PathId,

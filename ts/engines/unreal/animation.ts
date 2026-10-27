@@ -40,6 +40,12 @@ export const unrealAnimationClips = (files: LoadedFile[], engine: string): Anima
 
 const sampleCache = new Map<string, Promise<UnrealAnimationSamples>>();
 
+export const forgetUnrealSamples = (envId: number): void => {
+  [...sampleCache.keys()]
+    .filter((key) => key.startsWith(`${envId}|`))
+    .forEach((key) => sampleCache.delete(key));
+};
+
 const loadSamples = (clip: ClipRef) => {
   const key = `${clip.envId}|${clip.path}`;
   let pending = sampleCache.get(key);

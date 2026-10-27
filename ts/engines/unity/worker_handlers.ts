@@ -2,7 +2,7 @@ import { Environment } from "../../../pkg/u_v.js";
 import type { JSONValue, MeshResponse, PathId } from "../../types";
 import type { WorkerHandlers } from "../../worker_protocol";
 
-const environments: { name: string; env: Environment }[] = [];
+const environments: Array<{ name: string; env: Environment } | undefined> = [];
 
 const environmentAt = (fileIndex: number): Environment => {
   const entry = environments[fileIndex];
@@ -88,6 +88,12 @@ export const unityHandlers: WorkerHandlers = {
       transfer.push(skinWeights.buffer as ArrayBuffer);
     }
     return { payload, transfer };
+  },
+  FREE_FILE: ({ fileIndex }: { fileIndex: number }) => {
+    const entry = environments[fileIndex];
+    if (!entry) return;
+    entry.env.free();
+    environments[fileIndex] = undefined;
   },
   GET_TEXTURE_DATA: ({
     fileIndex,

@@ -5,6 +5,7 @@ import type { AnimationClipItem, AnimationData, LoadedFile, UnityObject, ViewerS
 import { buildAnimationData } from "../../animation_system";
 import { loadUnityFiles } from "./loader";
 import { UnitySceneBuilder } from "./scene_builder";
+import { unityWorker } from "./worker_api";
 
 export class UnityEngine extends AssetEngine {
   readonly id = "unity";
@@ -22,6 +23,11 @@ export class UnityEngine extends AssetEngine {
       files.filter((f) => !f.removedFromUI),
       this.id,
     );
+  }
+
+  release(file: LoadedFile): void {
+    if (file.fileIndex === undefined) return;
+    unityWorker.freeFile(file.fileIndex).catch(() => {});
   }
 
   buildAnimation(clip: AnimationClipItem, meshes: Mesh[], scene: Scene, state: ViewerState): AnimationData {
