@@ -156,7 +156,7 @@ export const unpackUnityNormal = (rgba: Uint8Array): void => {
   }
 };
 
-const RAMP_BAND_V = { default: 2 / 16, skin: 6 / 16 };
+const RAMP_DIFFUSE_V = 2 / 16;
 
 interface FaceFrame {
   forward: Vector3;
@@ -298,7 +298,7 @@ export class UnityToonPlugin extends MaterialPluginBase {
   public rmoTexture: Texture | null = null;
   public faceTexture: Texture | null = null;
   public baseColor = { r: 1, g: 1, b: 1 };
-  public rampV = RAMP_BAND_V.default;
+  public rampV = RAMP_DIFFUSE_V;
   public flatten = 0;
   public shadowRole: CastShadowRole | null = null;
   private readonly lightDir = new Vector3();
@@ -560,10 +560,8 @@ export const configureUnityToonPlugin = (
     g: base.g * tint.g,
     b: base.b * tint.b,
   };
-  plugin.rampV = /skin/i.test(info.name)
-    ? RAMP_BAND_V.skin
-    : RAMP_BAND_V.default;
-  plugin.flatten = mode === "toon" ? (usesFaceShadowMap(info) ? 0.6 : 0) : 1;
+  plugin.flatten =
+    mode === "toon" ? (info.keywords.includes("_GI_FLATTEN") ? 0.25 : 0) : 1;
   plugin.shadowRole =
     mode !== "toon"
       ? null
