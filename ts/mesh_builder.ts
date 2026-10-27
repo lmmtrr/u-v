@@ -568,6 +568,10 @@ export async function instantiateMesh(
       });
     }
   }
+  if (mesh_data.m_SubMeshes && mesh_data.m_SubMeshes.length > 0 && subMeshDefinitions.length === 0) {
+    customMesh.dispose();
+    return null;
+  }
   const vertexData = new VertexData();
   vertexData.positions = transformedPositions;
   vertexData.indices = transformedIndices;
@@ -684,6 +688,11 @@ export async function instantiateMesh(
       state.materialCache,
       state.textureCache,
     );
+    const def = subMeshDefinitions[0];
+    if (def && (def.indexStart !== 0 || def.indexCount !== transformedIndices!.length)) {
+      customMesh.subMeshes = [];
+      new SubMesh(0, 0, vertexCount, def.indexStart, def.indexCount, customMesh);
+    }
   }
   return customMesh;
 }
