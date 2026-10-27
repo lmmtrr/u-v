@@ -786,8 +786,8 @@ impl Environment {
         let mut objects: Vec<ClassType> = Vec::new();
         let mut object_hash = HashMap::new();
         let mut asset_manager = AssetManager::new();
-        if signature == "UnityFS" {
-            let bundle = Bundle::read(&mut reader).unwrap();
+        let bundle = if signature == "UnityFS" { Bundle::read(&mut reader).ok() } else { None };
+        if let Some(bundle) = bundle {
             for entry in bundle.files.iter() {
                 if entry.name.ends_with(".resS") || entry.name.ends_with(".resource") {
                     asset_manager.add_raw_file(entry.name.clone(), entry.data.clone());
