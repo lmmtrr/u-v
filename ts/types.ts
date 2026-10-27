@@ -58,6 +58,7 @@ export interface MeshMeta {
   }> | null;
   m_BindPose?: Array<{ m?: number[] } | number[]> | null;
   m_BoneNameHashes?: number[] | null;
+  m_IndexFormat?: number;
   m_Shapes?: {
     shapes?: Array<{
       vertexCount?: number;

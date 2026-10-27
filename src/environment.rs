@@ -389,6 +389,7 @@ fn process_mesh(mesh: &Mesh, raw: &UnityValue, path_id: i64) -> serde_json::Valu
         serde_json::Value::Object(sub_map)
     }).collect();
     json_map.insert("m_SubMeshes".to_string(), serde_json::Value::Array(submeshes));
+    json_map.insert("m_IndexFormat".to_string(), serde_json::Value::Number(mesh.m_IndexFormat.unwrap_or(0).into()));
     if let Some(ref poses) = mesh.m_BindPose {
         let pose_values = poses.iter().map(|pose| {
             let float_values = pose.e.iter().map(|&val| serde_json::Value::Number(serde_json::Number::from_f64(val as f64).unwrap_or(serde_json::Number::from(0)))).collect();
@@ -1286,7 +1287,21 @@ impl Environment {
         let src_file = source_file.as_string();
         let val = self.read_object(path_id, src_file, Some(43))?;
         let mesh = Mesh::try_from_unity_value(&val).ok()?;
-        let indices = mesh.get_indices().ok()?;
+        let mut indices = mesh.get_indices().ok()?;
+        let index_size = if mesh.m_IndexFormat.unwrap_or(0) == 1 { 4 } else { 2 };
+        for sub in mesh.m_SubMeshes.iter() {
+            if sub.baseVertex == 0 {
+                continue;
+            }
+            let start = (sub.firstByte / index_size) as usize;
+            let end = (start + sub.indexCount as usize).min(indices.len());
+            if start >= end {
+                continue;
+            }
+            for index in &mut indices[start..end] {
+                *index += sub.baseVertex;
+            }
+        }
         Some(Uint32Array::from(indices.as_slice()))
     }
     fn val_to_f32(v: &UnityValue) -> f32 {

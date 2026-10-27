@@ -490,6 +490,7 @@ export async function instantiateMesh(
     indexCount: number;
     boneIndex: number;
   }> = [];
+  const indexSize = mesh_data.m_IndexFormat === 1 ? 4 : 2;
   if (mesh_data.m_SubMeshes && mesh_data.m_SubMeshes.length > 0) {
     if (mesh_data.m_Skin && mesh_data.m_Skin.length > 0 && activeSkeleton && activeLocalToGlobal && activeLocalToGlobal.length > 0) {
       const vertexDominantBone = new Int32Array(vertexCount);
@@ -510,7 +511,7 @@ export async function instantiateMesh(
       const newIndices: number[] = [];
       mesh_data.m_SubMeshes.forEach((sub, si: number) => {
         if (!sub || sub.topology !== 0) return;
-        const start = sub.firstByte ? (sub.firstByte >> 1) : 0;
+        const start = sub.firstByte ? Math.floor(sub.firstByte / indexSize) : 0;
         let count = sub.indexCount;
         if (start >= 0 && count !== undefined && count > 0) {
           const triCount = Math.floor(count / 3);
@@ -556,7 +557,7 @@ export async function instantiateMesh(
     } else {
       mesh_data.m_SubMeshes.forEach((sub, si: number) => {
         if (!sub || sub.topology !== 0) return;
-        const start = sub.firstByte ? (sub.firstByte >> 1) : 0;
+        const start = sub.firstByte ? Math.floor(sub.firstByte / indexSize) : 0;
         let count = sub.indexCount;
         if (start >= 0 && count !== undefined && count > 0) {
           subMeshDefinitions.push({
