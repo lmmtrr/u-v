@@ -5,7 +5,7 @@ import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { MultiMaterial } from "@babylonjs/core/Materials/multiMaterial";
 import { Constants } from "@babylonjs/core/Engines/constants";
-import { state } from "./state";
+import { findSourceFile } from "./state";
 import { unityWorker } from "./engines/unity/worker_api";
 import {
   UnityToonPlugin,
@@ -66,9 +66,7 @@ export const toRGBABytes = async (
   const expected = width * height * 4;
   if (!expected) return null;
   if (!texData?.image_data && texData?.sourceFileName) {
-    const file = state.loadedFiles.find(
-      (f) => f.name === texData.sourceFileName,
-    );
+    const file = findSourceFile(texData);
     if (file && file.fileIndex !== undefined) {
       const pathId: PathId = texData.raw_path_id || texData.path_id || "";
         const result = await unityWorker.getTextureData(

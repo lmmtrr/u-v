@@ -14,7 +14,7 @@ import { createMaterial, createMultiMaterial } from "./renderer_utils";
 import { computeCRC32, normalizeHash } from "./utils";
 import { isHumanoidAvatar } from "./humanoid_system";
 import { unityWorker } from "./engines/unity/worker_api";
-import { state } from "./state";
+import { state, findSourceFile } from "./state";
 import type { MeshMeta, UnityObject, JSONValue, PathId } from "./types";
 export const getRelativeMatrix = (
   startPathId: string,
@@ -152,9 +152,7 @@ export async function instantiateMesh(
     ? Matrix.Invert(meshMatrix).transpose()
     : null;
   if (!renderer.transformedPositions) {
-    const file = state.loadedFiles.find(
-      (f) => f.name === mesh_data.sourceFileName,
-    );
+    const file = findSourceFile(mesh_data);
     if (file && file.fileIndex !== undefined) {
       const pathId = mesh_data.raw_path_id || mesh_data.path_id || "";
       const matrixArray = hasSkin ? meshMatrix.toArray() : null;

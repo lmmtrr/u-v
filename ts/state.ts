@@ -68,3 +68,10 @@ export const state: ViewerState = {
     this._warnedEmptyAnim = false;
   },
 };
+export const findSourceFile = (data: {
+  sourceFileName?: string;
+  sourceFileIndex?: number;
+}): LoadedFile | undefined =>
+  (data.sourceFileIndex !== undefined
+    ? state.loadedFiles.find((f) => f.fileIndex === data.sourceFileIndex)
+    : undefined) ?? state.loadedFiles.find((f) => f.name === data.sourceFileName);

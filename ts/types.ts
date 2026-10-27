@@ -40,6 +40,7 @@ export interface TextureMeta {
   m_Height?: number;
   image_data?: string | Uint8Array | null;
   sourceFileName?: string;
+  sourceFileIndex?: number;
   name?: string;
   m_Name?: string;
 }
@@ -92,6 +93,7 @@ export interface MeshMeta {
     };
   }> | null;
   sourceFileName?: string;
+  sourceFileIndex?: number;
   name?: string;
 }
 export interface GameObjectRef {

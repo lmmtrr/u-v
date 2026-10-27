@@ -237,7 +237,10 @@ export class UnitySceneBuilder {
         if (!obj) return;
         const type = Object.keys(obj)[0];
         const actualObj = obj[type] as Record<string, JSONValue> | undefined;
-        if (actualObj) actualObj.sourceFileName = f.name;
+        if (actualObj) {
+          actualObj.sourceFileName = f.name;
+          actualObj.sourceFileIndex = f.fileIndex;
+        }
       });
       objects.push(...f.objects);
       if (f.hash instanceof Map) {

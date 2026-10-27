@@ -99,10 +99,10 @@ const collectRawIds = (file: LoadedFile): string[] => {
   return ids;
 };
 export const normalizeLoadedFileIds = (files: LoadedFile[]): void => {
-  const ownerByRawId = new Map<string, string>();
+  const ownerByRawId = new Map<string, LoadedFile>();
   const claim = (file: LoadedFile, ids: string[]) => {
     ids.forEach((id) => {
-      if (!ownerByRawId.has(id)) ownerByRawId.set(id, String(file.name || ""));
+      if (!ownerByRawId.has(id)) ownerByRawId.set(id, file);
     });
   };
   files.forEach((file) => {
@@ -111,10 +111,9 @@ export const normalizeLoadedFileIds = (files: LoadedFile[]): void => {
   files.forEach((file, index) => {
     if (file.idSuffix !== undefined) return;
     const rawIds = collectRawIds(file);
-    const fileName = String(file.name || "");
     const collides = rawIds.some((id) => {
       const owner = ownerByRawId.get(id);
-      return owner !== undefined && owner !== fileName;
+      return owner !== undefined && owner !== file;
     });
     const suffix = collides ? `@${file.fileIndex ?? index}` : "";
     if (suffix) {
