@@ -590,6 +590,14 @@ export async function instantiateMesh(
   if (mesh_data.m_Shapes?.channels && mesh_data.m_Shapes.channels.length > 0) {
     const morphManager = new MorphTargetManager(scene);
     customMesh.morphTargetManager = morphManager;
+    const baseNormals = customMesh.getVerticesData(VertexBuffer.NormalKind);
+    const shapeNormalMatrix = Matrix.Invert(meshMatrix).transpose();
+    const shapeHasNormals = (shape: { hasNormals?: boolean | number }) =>
+      shape.hasNormals !== false && shape.hasNormals !== 0;
+    const morphNormals =
+      !!baseNormals &&
+      baseNormals.length === transformedPositions.length &&
+      (mesh_data.m_Shapes.shapes ?? []).some(shapeHasNormals);
     mesh_data.m_Shapes.channels.forEach((rawChannel: Record<string, JSONValue> | null, channelIdx: number) => {
       const channel = rawChannel as { name?: string; frameCount?: number; frameIndex?: number } | null;
       if (channel && channel.frameCount && channel.frameCount > 0 && channel.frameIndex !== undefined && mesh_data.m_Shapes) {
@@ -601,10 +609,13 @@ export async function instantiateMesh(
             const target = new MorphTarget(channel.name || `shape_${channelIdx}`, 0, scene);
             const targetPositions = new Float32Array(transformedPositions.length);
             targetPositions.set(transformedPositions);
+            const targetNormals = morphNormals ? new Float32Array(baseNormals!) : null;
+            const applyNormals = !!targetNormals && shapeHasNormals(shape);
             const delta = new Vector3();
+            const normalDelta = new Vector3();
             for (let i = 0; i < shape.vertexCount; i++) {
-              const entry: number = (shape.firstVertex + i) * 4;
-              if (entry + 3 < vertices.length && vertices[entry] >= 0) {
+              const entry: number = (shape.firstVertex + i) * 7;
+              if (entry + 6 < vertices.length && vertices[entry] >= 0) {
                 const vIdx = vertices[entry] * 3;
                 if (vIdx < targetPositions.length) {
                   delta.set(
@@ -619,10 +630,26 @@ export async function instantiateMesh(
                   targetPositions[vIdx] += transformedDelta.x;
                   targetPositions[vIdx + 1] += transformedDelta.y;
                   targetPositions[vIdx + 2] += transformedDelta.z;
+                  if (targetNormals && applyNormals) {
+                    normalDelta.set(
+                      vertices[entry + 4],
+                      vertices[entry + 5],
+                      vertices[entry + 6],
+                    );
+                    Vector3.TransformNormalToRef(normalDelta, shapeNormalMatrix, normalDelta);
+                    const nx = targetNormals[vIdx] + normalDelta.x;
+                    const ny = targetNormals[vIdx + 1] + normalDelta.y;
+                    const nz = targetNormals[vIdx + 2] + normalDelta.z;
+                    const len = Math.hypot(nx, ny, nz) || 1;
+                    targetNormals[vIdx] = nx / len;
+                    targetNormals[vIdx + 1] = ny / len;
+                    targetNormals[vIdx + 2] = nz / len;
+                  }
                 }
               }
             }
             target.setPositions(targetPositions);
+            if (targetNormals) target.setNormals(targetNormals);
             const weights = renderer.m_BlendShapeWeights as number[] | undefined;
             if (
               weights &&

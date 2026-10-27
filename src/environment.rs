@@ -1222,12 +1222,14 @@ impl Environment {
         if vertices.is_empty() {
             return None;
         }
-        let mut flat = Vec::with_capacity(vertices.len() * 4);
+        let mut flat = Vec::with_capacity(vertices.len() * 7);
         for v in vertices {
             flat.push(v.get("index").map(Self::val_to_f32).unwrap_or(-1.0));
-            let vertex = v.get("vertex");
-            for axis in ["x", "y", "z"] {
-                flat.push(vertex.and_then(|p| p.get(axis)).map(Self::val_to_f32).unwrap_or(0.0));
+            for field in ["vertex", "normal"] {
+                let value = v.get(field);
+                for axis in ["x", "y", "z"] {
+                    flat.push(value.and_then(|p| p.get(axis)).map(Self::val_to_f32).unwrap_or(0.0));
+                }
             }
         }
         Some(Float32Array::from(flat.as_slice()))

@@ -65,6 +65,7 @@ export interface MeshMeta {
     shapes?: Array<{
       vertexCount?: number;
       firstVertex?: number;
+      hasNormals?: boolean | number;
       vertices?: Array<{
         vertex?: { x: number; y: number; z: number };
         normal?: { x: number; y: number; z: number };
