@@ -182,7 +182,7 @@ pub(crate) fn decompress_texture(width: usize, height: usize, format: i32, image
                                     let a = (alpha[i / 2] >> ((i % 2) * 4)) & 0xF;
                                     let a8 = a | (a << 4);
                                     let c = block[i].to_le_bytes();
-                                    decompressed[py * width + px] = u32::from_le_bytes([c[0], c[1], c[2], a8]);
+                                    decompressed[py * aligned_w + px] = u32::from_le_bytes([c[0], c[1], c[2], a8]);
                                 }
                             }
                         }
