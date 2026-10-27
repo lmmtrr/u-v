@@ -741,7 +741,13 @@ export class SceneManager {
     state.showOutlines = v;
     applyOutlines(this.scene, state.createdMeshes, v);
   };
-  public async rebuildScene(skipUIUpdate = false) {
+  private rebuildQueue: Promise<void> = Promise.resolve();
+  public rebuildScene(skipUIUpdate = false): Promise<void> {
+    const run = this.rebuildQueue.then(() => this.performRebuild(skipUIUpdate));
+    this.rebuildQueue = run.catch(() => {});
+    return run;
+  }
+  private async performRebuild(skipUIUpdate: boolean) {
     this.cleanUpSceneResources();
     const builtScenes: EngineScene[] = [];
     for (const engine of engines) {
