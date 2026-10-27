@@ -447,8 +447,10 @@ export const buildAnimationData = (
         if (mesh.morphTargetManager) {
           for (let i = 0; i < mesh.morphTargetManager.numTargets; i++) {
             const target = mesh.morphTargetManager.getTarget(i);
-            const targetCrc = computeCRC32("blendShape." + target.name);
-            if (targetCrc === targetHash) {
+            if (
+              computeCRC32("blendShape." + target.name) === targetHash ||
+              computeCRC32(target.name) === targetHash
+            ) {
               animationData.morphs.set(target, curvesData[curveIndex] || []);
               break;
             }
