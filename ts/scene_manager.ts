@@ -1163,6 +1163,23 @@ export class SceneManager {
             createdAnimations.push({ node, anims: nodeAnims });
           }
         });
+        animData.morphs.forEach((curve, target) => {
+          if (curve.length === 0 || state.morphOverrides.has(target)) return;
+          const keys = [];
+          for (let f = 0; f <= maxFrame; f++) {
+            const value = interpolate(curve, f);
+            keys.push({ frame: f, value: value !== null ? value / 100 : target.influence });
+          }
+          const anim = new Animation(
+            `${target.name}_influence`,
+            "influence",
+            frameRate,
+            Animation.ANIMATIONTYPE_FLOAT,
+            Animation.ANIMATIONLOOPMODE_CYCLE,
+          );
+          anim.setKeys(keys);
+          tempAnimGroup.addTargetedAnimation(anim, target);
+        });
       }
       updateProgress(45, "Preparing scene serialization...");
       this.pauseSceneObserversForExport(exportRestores);
