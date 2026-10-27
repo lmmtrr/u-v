@@ -444,6 +444,13 @@ uniform vec2 toonScreenSize;
       uniformBuffer.setTexture("toonRmoSampler", this.rmoTexture);
   }
 
+  public override dispose(forceDisposeTextures?: boolean): void {
+    if (!forceDisposeTextures) return;
+    this.rampTexture?.dispose();
+    this.rmoTexture?.dispose();
+    this.faceTexture?.dispose();
+  }
+
   public override getActiveTextures(activeTextures: Texture[]): void {
     if (this.rampTexture) activeTextures.push(this.rampTexture);
     if (this.rmoTexture) activeTextures.push(this.rmoTexture);

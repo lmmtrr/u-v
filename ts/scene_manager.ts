@@ -55,6 +55,11 @@ export class SceneManager {
     this.scene.meshes.slice().forEach((m) => m.dispose());
     this.scene.skeletons.slice().forEach((s) => s.dispose());
     this.scene.transformNodes.slice().forEach((n) => n.dispose());
+    state.materialCache.forEach((material) => {
+      if (material instanceof MultiMaterial) material.dispose(false, true, true);
+      else material.dispose(false, true);
+    });
+    state.textureCache.forEach((texture) => texture.dispose());
     state.clearState();
   }
   public removePart = (
