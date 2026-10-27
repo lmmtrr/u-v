@@ -15,9 +15,15 @@ import type { IndicesArray } from "@babylonjs/core/types";
 import { Animation } from "@babylonjs/core/Animations/animation";
 import { AnimationGroup } from "@babylonjs/core/Animations/animationGroup";
 import { GLTF2Export } from "@babylonjs/serializers/glTF/2.0/glTFSerializer";
+import "@babylonjs/serializers/glTF/2.0/Extensions/KHR_materials_unlit";
+import { Constants } from "@babylonjs/core/Engines/constants";
+import { Material } from "@babylonjs/core/Materials/material";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
+import { Texture } from "@babylonjs/core/Materials/Textures/texture";
 import type { Observer } from "@babylonjs/core/Misc/observable";
 import { state } from "./state";
 import { applyOutlines, disposeOutlines } from "./outline";
+import { rgbaToDataURL } from "./renderer_utils";
 import {
   createAnimationUI,
   createFileListUI,
@@ -1059,6 +1065,7 @@ export class SceneManager {
       disposeOutlines(this.scene);
       this.alignSkinRootsForExport(exportRestores);
       this.prepareMaterialsForExport(exportRestores);
+      await this.prepareOverlaysForExport(exportRestores);
       this.prepareMeshDataForExport(exportRestores);
       this.flipFrontCulledSubMeshesForExport(exportRestores);
       this.consolidateSubMeshesForExport(exportRestores);
@@ -1252,6 +1259,38 @@ export class SceneManager {
       });
     });
   }
+  private async prepareOverlaysForExport(
+    restores: Array<() => void>,
+  ): Promise<void> {
+    const baked = new Map<string, Texture | null>();
+    restores.push(() => baked.forEach((texture) => texture?.dispose()));
+    for (const material of this.scene.materials) {
+      if (!(material instanceof StandardMaterial)) continue;
+      const additive = material.alphaMode === Constants.ALPHA_ADD;
+      if (!additive && material.alphaMode !== Constants.ALPHA_MULTIPLY)
+        continue;
+      const source = material.diffuseTexture;
+      if (!(source instanceof Texture)) continue;
+      const key = `${source.uniqueId}:${additive}`;
+      if (!baked.has(key))
+        baked.set(key, await bakeOverlayTexture(source, additive, this.scene));
+      const texture = baked.get(key);
+      if (!texture) continue;
+      const original = {
+        diffuseTexture: material.diffuseTexture,
+        useAlphaFromDiffuseTexture: material.useAlphaFromDiffuseTexture,
+        disableLighting: material.disableLighting,
+        alphaMode: material.alphaMode,
+        transparencyMode: material.transparencyMode,
+      };
+      material.diffuseTexture = texture;
+      material.useAlphaFromDiffuseTexture = true;
+      material.disableLighting = true;
+      material.alphaMode = Constants.ALPHA_COMBINE;
+      material.transparencyMode = Material.MATERIAL_ALPHABLEND;
+      restores.push(() => Object.assign(material, original));
+    }
+  }
   private prepareMeshDataForExport(restores: Array<() => void>): void {
     const engine = this.scene.getEngine();
     const seen = new Set<unknown>();
@@ -1400,3 +1439,52 @@ export class SceneManager {
     });
   }
 }
+const bakeOverlayTexture = async (
+  source: Texture,
+  additive: boolean,
+  scene: Scene,
+): Promise<Texture | null> => {
+  const { width, height } = source.getSize();
+  const pixels = await source.readPixels();
+  if (!pixels || width <= 0 || height <= 0) return null;
+  const src = new Uint8Array(
+    pixels.buffer,
+    pixels.byteOffset,
+    pixels.byteLength,
+  );
+  const out = new Uint8Array(width * height * 4);
+  for (let i = 0; i < out.length; i += 4) {
+    const r = src[i];
+    const g = src[i + 1];
+    const b = src[i + 2];
+    if (additive) {
+      const a = Math.max(r, g, b);
+      const scale = a > 0 ? 255 / a : 0;
+      out[i] = Math.round(r * scale);
+      out[i + 1] = Math.round(g * scale);
+      out[i + 2] = Math.round(b * scale);
+      out[i + 3] = a;
+    } else {
+      out[i + 3] = 255 - Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+    }
+  }
+  const name = `${source.name}_${additive ? "add" : "mul"}`;
+  const baked = Texture.CreateFromBase64String(
+    rgbaToDataURL(out, width, height),
+    name,
+    scene,
+    false,
+    false,
+    Texture.BILINEAR_SAMPLINGMODE,
+  );
+  baked.name = name;
+  baked.hasAlpha = true;
+  baked.wrapU = source.wrapU;
+  baked.wrapV = source.wrapV;
+  baked.uScale = source.uScale;
+  baked.vScale = source.vScale;
+  baked.uOffset = source.uOffset;
+  baked.vOffset = source.vOffset;
+  baked.coordinatesIndex = source.coordinatesIndex;
+  return baked;
+};
