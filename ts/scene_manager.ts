@@ -130,8 +130,12 @@ export class SceneManager {
     const strA = String(idA).replace("orphan_", "");
     const strB = String(idB).replace("orphan_", "");
     if (strA === strB) return true;
-    if (strA.length >= 15 && strB.length >= 15) {
-      return strA.substring(0, 15) === strB.substring(0, 15);
+    const [baseA, suffixA = ""] = strA.split("@");
+    const [baseB, suffixB = ""] = strB.split("@");
+    if (suffixA !== suffixB) return false;
+    if (baseA === baseB) return true;
+    if (baseA.length >= 15 && baseB.length >= 15) {
+      return baseA.substring(0, 15) === baseB.substring(0, 15);
     }
     return false;
   };
@@ -158,8 +162,11 @@ export class SceneManager {
       );
       const isMatch =
         (targetId &&
-          (pathIdStr === targetId || `orphan_${pathIdStr}` === targetId)) ||
-        ((!obj?.Mesh || targetIsOrphan) &&
+          (pathIdStr === targetId ||
+            `orphan_${pathIdStr}` === targetId ||
+            this.isApproxPathIdMatch(pathIdStr, targetId))) ||
+        (!targetId &&
+          (!obj?.Mesh || targetIsOrphan) &&
           partName &&
           displayName &&
           displayName === partName);
@@ -171,27 +178,37 @@ export class SceneManager {
       const matchingMeshes = state.createdMeshes.filter((mesh) => {
         if (!mesh.metadata) return false;
         const meshPathIdStr = String(mesh.metadata.rendererPathId);
-        const canMatchByName =
-          targetIsOrphan || !meshPathIdStr.startsWith("orphan_");
         return matchingRenderers.some((data) => {
           const pathIdStr = String(data.path_id || "");
-          const meshMeta = data.mesh as Record<string, JSONValue> | undefined;
-          const displayName = String(
-            data.name || meshMeta?.name || `part_${pathIdStr}`,
-          );
           const idMatch =
             meshPathIdStr === pathIdStr ||
-            meshPathIdStr === `orphan_${pathIdStr}`;
-          const normMeshName = (mesh.name || "").toLowerCase();
-          const normDispName = (displayName || "").toLowerCase();
-          const normDataName = String(data.name || "").toLowerCase();
-          const normPartName = (partName || "").toLowerCase();
-          const nameMatch =
-            canMatchByName &&
-            ((normMeshName && normDispName && normMeshName === normDispName) ||
-              (normMeshName && normDataName && normMeshName === normDataName) ||
-              (normMeshName && normPartName && normMeshName === normPartName));
-          return idMatch || nameMatch;
+            meshPathIdStr === `orphan_${pathIdStr}` ||
+            `orphan_${meshPathIdStr}` === pathIdStr ||
+            this.isApproxPathIdMatch(meshPathIdStr, pathIdStr);
+          if (idMatch) return true;
+          if (!targetId) {
+            const meshMeta = data.mesh as Record<string, JSONValue> | undefined;
+            const displayName = String(
+              data.name || meshMeta?.name || `part_${pathIdStr}`,
+            );
+            const canMatchByName =
+              targetIsOrphan || !meshPathIdStr.startsWith("orphan_");
+            const normMeshName = (mesh.name || "").toLowerCase();
+            const normDispName = (displayName || "").toLowerCase();
+            const normDataName = String(data.name || "").toLowerCase();
+            const normPartName = (partName || "").toLowerCase();
+            return (
+              canMatchByName &&
+              ((normMeshName &&
+                normDispName &&
+                normMeshName === normDispName) ||
+                (normMeshName &&
+                  normDataName &&
+                  normMeshName === normDataName) ||
+                (normMeshName && normPartName && normMeshName === normPartName))
+            );
+          }
+          return false;
         });
       });
       let currentEnabled: boolean;
@@ -225,24 +242,24 @@ export class SceneManager {
       allToggles.forEach((t) => {
         const el = t as HTMLElement;
         const pid = el.getAttribute("data-path-id") || el.dataset?.pathId;
-        const row = t.closest(".part-row");
-        const nameEl = row?.querySelector(".part-name");
-        const rowName = nameEl?.textContent;
-        if (
-          (targetId && pid === String(targetId)) ||
-          (partName && rowName === partName)
-        ) {
+        const isTarget = targetId
+          ? pid === String(targetId) || this.isApproxPathIdMatch(pid, targetId)
+          : matchingRenderers.some((data) =>
+              this.isApproxPathIdMatch(pid, data.path_id),
+            );
+        if (isTarget) {
           el.classList.toggle("active", nextEnabled);
         }
       });
       allNames.forEach((n) => {
         const el = n as HTMLElement;
         const pid = el.getAttribute("data-path-id") || el.dataset?.pathId;
-        const rowName = n.textContent;
-        if (
-          (targetId && pid === String(targetId)) ||
-          (partName && rowName === partName)
-        ) {
+        const isTarget = targetId
+          ? pid === String(targetId) || this.isApproxPathIdMatch(pid, targetId)
+          : matchingRenderers.some((data) =>
+              this.isApproxPathIdMatch(pid, data.path_id),
+            );
+        if (isTarget) {
           el.classList.toggle("active", nextEnabled);
         }
       });
