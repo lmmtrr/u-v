@@ -1,7 +1,9 @@
 use wasm_bindgen::prelude::*;
 use js_sys::{Float32Array, Uint32Array, Uint8Array};
 use serde::Serialize;
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 use unityfs::{Bundle, Reader, SerializedFile, UnityValue, UnityVersion};
 use unityfs::assets::AssetManager;
 use unityfs::classes::{texture2d::Texture2D, mesh::Mesh};
@@ -44,6 +46,7 @@ pub struct Environment {
     pub(crate) objects: Vec<ClassType>,
     pub(crate) object_hash: HashMap<String, String>,
     pub(crate) asset_manager: unityfs::assets::AssetManager,
+    mesh_cache: RefCell<Option<(i64, Option<String>, Rc<(UnityValue, Option<Mesh>)>)>>,
 }
 pub(crate) fn decompress_texture(width: usize, height: usize, format: i32, image_data: &[u8]) -> Option<Vec<u8>> {
     let (block_w, block_h) = match format {
@@ -970,6 +973,7 @@ impl Environment {
             objects,
             object_hash,
             asset_manager,
+            mesh_cache: RefCell::new(None),
         }
     }
     #[wasm_bindgen]
@@ -1040,6 +1044,18 @@ impl Environment {
             }
         }
         None
+    }
+    fn cached_mesh(&self, path_id: i64, source_file: Option<String>) -> Option<Rc<(UnityValue, Option<Mesh>)>> {
+        if let Some((cached_id, cached_source, entry)) = self.mesh_cache.borrow().as_ref() {
+            if *cached_id == path_id && *cached_source == source_file {
+                return Some(entry.clone());
+            }
+        }
+        let val = self.read_object(path_id, source_file.clone(), Some(43))?;
+        let mesh = Mesh::try_from_unity_value(&val).ok();
+        let entry = Rc::new((val, mesh));
+        *self.mesh_cache.borrow_mut() = Some((path_id, source_file, entry.clone()));
+        Some(entry)
     }
     fn read_object_from_file(&self, asset_name: &str, path_id: i64) -> Option<UnityValue> {
         match self.asset_manager.read_object_value(asset_name, 0, path_id) {
@@ -1114,8 +1130,8 @@ impl Environment {
     pub fn getMeshVertices(&self, path_id: JsValue, source_file: JsValue) -> Option<Float32Array> {
         let path_id = Self::parse_path_id(&path_id)?;
         let src_file = source_file.as_string();
-        let val = self.read_object(path_id, src_file, Some(43))?;
-        let mesh = Mesh::try_from_unity_value(&val).ok()?;
+        let cached = self.cached_mesh(path_id, src_file)?;
+        let mesh = cached.1.as_ref()?;
         let verts = mesh.get_vertices().ok()?;
         let mut flat = Vec::with_capacity(verts.len() * 3);
         for v in verts {
@@ -1129,8 +1145,8 @@ impl Environment {
     pub fn getMeshNormals(&self, path_id: JsValue, source_file: JsValue) -> Option<Float32Array> {
         let path_id = Self::parse_path_id(&path_id)?;
         let src_file = source_file.as_string();
-        let val = self.read_object(path_id, src_file, Some(43))?;
-        let mesh = Mesh::try_from_unity_value(&val).ok()?;
+        let cached = self.cached_mesh(path_id, src_file)?;
+        let mesh = cached.1.as_ref()?;
         let norms = mesh.get_normals().ok()?;
         let mut flat = Vec::with_capacity(norms.len() * 3);
         for n in norms {
@@ -1144,8 +1160,8 @@ impl Environment {
     pub fn getMeshUV0s(&self, path_id: JsValue, source_file: JsValue) -> Option<Float32Array> {
         let path_id = Self::parse_path_id(&path_id)?;
         let src_file = source_file.as_string();
-        let val = self.read_object(path_id, src_file, Some(43))?;
-        let mesh = Mesh::try_from_unity_value(&val).ok()?;
+        let cached = self.cached_mesh(path_id, src_file)?;
+        let mesh = cached.1.as_ref()?;
         let uvs = mesh.extract_uvs().ok()?;
         let mut flat = Vec::with_capacity(uvs.len() * 2);
         for (u, v) in uvs {
@@ -1158,8 +1174,8 @@ impl Environment {
     pub fn getMeshUV1s(&self, path_id: JsValue, source_file: JsValue) -> Option<Float32Array> {
         let path_id = Self::parse_path_id(&path_id)?;
         let src_file = source_file.as_string();
-        let val = self.read_object(path_id, src_file, Some(43))?;
-        let mesh = Mesh::try_from_unity_value(&val).ok()?;
+        let cached = self.cached_mesh(path_id, src_file)?;
+        let mesh = cached.1.as_ref()?;
         let flat = extract_uv_channel(&mesh, 1)?;
         Some(Float32Array::from(flat.as_slice()))
     }
@@ -1167,8 +1183,8 @@ impl Environment {
     pub fn getMeshIndices(&self, path_id: JsValue, source_file: JsValue) -> Option<Uint32Array> {
         let path_id = Self::parse_path_id(&path_id)?;
         let src_file = source_file.as_string();
-        let val = self.read_object(path_id, src_file, Some(43))?;
-        let mesh = Mesh::try_from_unity_value(&val).ok()?;
+        let cached = self.cached_mesh(path_id, src_file)?;
+        let mesh = cached.1.as_ref()?;
         let mut indices = mesh.get_indices().ok()?;
         let index_size = if mesh.m_IndexFormat.unwrap_or(0) == 1 { 4 } else { 2 };
         for sub in mesh.m_SubMeshes.iter() {
@@ -1262,12 +1278,13 @@ impl Environment {
     pub fn getMeshSkinIndices(&self, path_id: JsValue, source_file: JsValue) -> Option<Uint32Array> {
         let path_id = Self::parse_path_id(&path_id)?;
         let src_file = source_file.as_string();
-        let val = self.read_object(path_id, src_file, Some(43))?;
+        let cached = self.cached_mesh(path_id, src_file)?;
+        let val = &cached.0;
         if let Some((indices, _)) = Self::extract_skin_from_value(&val) {
             let slice: &[u32] = indices.as_slice();
             return Some(Uint32Array::from(slice));
         }
-        let mesh = Mesh::try_from_unity_value(&val).ok()?;
+        let mesh = cached.1.as_ref()?;
         let indices = mesh.extract_bone_indices().ok()?;
         let mut flat = Vec::with_capacity(indices.len() * 4);
         for idx in indices {
@@ -1282,12 +1299,13 @@ impl Environment {
     pub fn getMeshSkinWeights(&self, path_id: JsValue, source_file: JsValue) -> Option<Float32Array> {
         let path_id = Self::parse_path_id(&path_id)?;
         let src_file = source_file.as_string();
-        let val = self.read_object(path_id, src_file, Some(43))?;
+        let cached = self.cached_mesh(path_id, src_file)?;
+        let val = &cached.0;
         if let Some((_, weights)) = Self::extract_skin_from_value(&val) {
             let slice: &[f32] = weights.as_slice();
             return Some(Float32Array::from(slice));
         }
-        let mesh = Mesh::try_from_unity_value(&val).ok()?;
+        let mesh = cached.1.as_ref()?;
         let weights = mesh.extract_bone_weights().ok()?;
         let mut flat = Vec::with_capacity(weights.len() * 4);
         for w in weights {
@@ -1380,8 +1398,8 @@ impl Environment {
     pub fn getTransformedMeshVertices(&self, path_id: JsValue, source_file: JsValue, matrix: Vec<f32>) -> Option<Float32Array> {
         let path_id = Self::parse_path_id(&path_id)?;
         let src_file = source_file.as_string();
-        let val = self.read_object(path_id, src_file, Some(43))?;
-        let mesh = Mesh::try_from_unity_value(&val).ok()?;
+        let cached = self.cached_mesh(path_id, src_file)?;
+        let mesh = cached.1.as_ref()?;
         let verts = mesh.get_vertices().ok()?;
         let m: [f32; 16] = matrix.try_into().ok()?;
         let mut flat = Vec::with_capacity(verts.len() * 3);
@@ -1397,8 +1415,8 @@ impl Environment {
     pub fn getTransformedMeshNormals(&self, path_id: JsValue, source_file: JsValue, matrix: Vec<f32>) -> Option<Float32Array> {
         let path_id = Self::parse_path_id(&path_id)?;
         let src_file = source_file.as_string();
-        let val = self.read_object(path_id, src_file, Some(43))?;
-        let mesh = Mesh::try_from_unity_value(&val).ok()?;
+        let cached = self.cached_mesh(path_id, src_file)?;
+        let mesh = cached.1.as_ref()?;
         let norms = mesh.get_normals().ok()?;
         let m: [f32; 16] = matrix.try_into().ok()?;
         let mut flat = Vec::with_capacity(norms.len() * 3);
