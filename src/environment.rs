@@ -1064,29 +1064,7 @@ impl Environment {
                     .and_then(|s| s.parse::<i64>().ok())
                     .unwrap_or(0)
             }
-            for (i, obj) in objects.iter().enumerate() {
-                let path_id = match obj {
-                    ClassType::GameObject(val) => parse_path_id(val),
-                    ClassType::Transform(val) => parse_path_id(val),
-                    ClassType::Material(val) => parse_path_id(val),
-                    ClassType::Mesh(val) => parse_path_id(val),
-                    ClassType::MeshFilter(val) => parse_path_id(val),
-                    ClassType::MeshRenderer(val) => parse_path_id(val),
-                    ClassType::SkinnedMeshRenderer(val) => parse_path_id(val),
-                    ClassType::Texture2D(val) => parse_path_id(val),
-                    ClassType::TextAsset(val) => parse_path_id(val),
-                    ClassType::AnimationClip(val) => parse_path_id(val),
-                    ClassType::Animator(val) => parse_path_id(val),
-                    ClassType::Avatar(val) => parse_path_id(val),
-                    ClassType::SpringBone(val) => parse_path_id(val),
-                    ClassType::DynamicBone(val) => parse_path_id(val),
-                    ClassType::AssetBundle(val) => parse_path_id(val),
-                    ClassType::LODGroup(val) => parse_path_id(val),
-                    ClassType::Unknown { path_id, .. } => *path_id,
-                };
-                if path_id != 0 {
-                    object_hash.insert(path_id.to_string(), i.to_string());
-                }
+            for obj in objects.iter() {
                 if let ClassType::Transform(val) = obj {
                     let tr_id = parse_path_id(val);
                     let path = get_transform_path(tr_id, &transforms_map, &game_objects_map);
