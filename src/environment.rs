@@ -1343,6 +1343,9 @@ impl Environment {
     fn extract_skin_from_value(val: &UnityValue) -> Option<(Vec<u32>, Vec<f32>)> {
         let m_skin = val.get("m_Skin")?;
         if let UnityValue::Array(arr) = m_skin {
+            if arr.is_empty() {
+                return None;
+            }
             let mut indices = Vec::with_capacity(arr.len() * 4);
             let mut weights = Vec::with_capacity(arr.len() * 4);
             for item in arr {
