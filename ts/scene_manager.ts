@@ -439,29 +439,84 @@ export class SceneManager {
     visible: boolean,
   ) => {
     const targetIdStr = String(partId);
-    const mesh = state.createdMeshes.find(
-      (m) => m.metadata && String(m.metadata.rendererPathId) === targetIdStr,
+    const matchingMeshes = state.createdMeshes.filter(
+      (m) =>
+        m.metadata &&
+        (String(m.metadata.rendererPathId) === targetIdStr ||
+          String(m.metadata.rendererPathId) === `orphan_${targetIdStr}` ||
+          `orphan_${m.metadata.rendererPathId}` === targetIdStr ||
+          this.isApproxPathIdMatch(m.metadata.rendererPathId, targetIdStr)),
     );
-    if (mesh) {
-      if (!mesh.metadata.originalSubMeshes) {
-        mesh.metadata.originalSubMeshes = [...mesh.subMeshes];
-      }
-      const originalSubMeshes = mesh.metadata.originalSubMeshes as SubMesh[];
-      if (!mesh.metadata.visibleSubmeshIndices) {
-        mesh.metadata.visibleSubmeshIndices = new Set(
-          originalSubMeshes
-            .map((sub, idx) => (mesh.subMeshes.includes(sub) ? idx : -1))
-            .filter((idx) => idx !== -1),
+    if (matchingMeshes.length > 0) {
+      matchingMeshes.forEach((mesh) => {
+        if (!mesh.metadata.originalSubMeshes) {
+          mesh.metadata.originalSubMeshes = [...mesh.subMeshes];
+        }
+        const originalSubMeshes = mesh.metadata.originalSubMeshes as SubMesh[];
+        if (!mesh.metadata.visibleSubmeshIndices) {
+          mesh.metadata.visibleSubmeshIndices = new Set(
+            originalSubMeshes
+              .map((sub, idx) => (mesh.subMeshes.includes(sub) ? idx : -1))
+              .filter((idx) => idx !== -1),
+          );
+        }
+        if (visible) {
+          mesh.metadata.visibleSubmeshIndices.add(submeshIndex);
+        } else {
+          mesh.metadata.visibleSubmeshIndices.delete(submeshIndex);
+        }
+        mesh.subMeshes = originalSubMeshes.filter((_, idx) =>
+          mesh.metadata.visibleSubmeshIndices.has(idx),
         );
+        mesh.setEnabled(mesh.metadata.visibleSubmeshIndices.size > 0);
+      });
+      const file = state.loadedFiles[fileIndex];
+      if (file) {
+        file.objects.forEach((obj) => {
+          const data = (obj?.SkinnedMeshRenderer ||
+            obj?.MeshRenderer ||
+            obj?.Mesh) as Record<string, JSONValue> | undefined;
+          if (!data) return;
+          const pathIdStr = String(data.path_id || "");
+          if (
+            pathIdStr === targetIdStr ||
+            `orphan_${pathIdStr}` === targetIdStr ||
+            targetIdStr === `orphan_${pathIdStr}` ||
+            this.isApproxPathIdMatch(pathIdStr, targetIdStr)
+          ) {
+            data.m_Enabled = matchingMeshes.some((m) => m.isEnabled());
+          }
+        });
       }
-      if (visible) {
-        mesh.metadata.visibleSubmeshIndices.add(submeshIndex);
-      } else {
-        mesh.metadata.visibleSubmeshIndices.delete(submeshIndex);
-      }
-      mesh.subMeshes = originalSubMeshes.filter((_, idx) =>
-        mesh.metadata.visibleSubmeshIndices.has(idx),
-      );
+      const isFullyVisible =
+        matchingMeshes.length > 0 &&
+        matchingMeshes.every(
+          (m) => m.isEnabled() && this.isMeshFullyVisible(m),
+        );
+      const allToggles = document.querySelectorAll(".visibility-toggle");
+      const allNames = document.querySelectorAll(".part-name");
+      allToggles.forEach((t) => {
+        const el = t as HTMLElement;
+        const pid = el.getAttribute("data-path-id") || el.dataset?.pathId;
+        if (
+          pid === targetIdStr ||
+          pid === `orphan_${targetIdStr}` ||
+          this.isApproxPathIdMatch(pid, targetIdStr)
+        ) {
+          el.classList.toggle("active", isFullyVisible);
+        }
+      });
+      allNames.forEach((n) => {
+        const el = n as HTMLElement;
+        const pid = el.getAttribute("data-path-id") || el.dataset?.pathId;
+        if (
+          pid === targetIdStr ||
+          pid === `orphan_${targetIdStr}` ||
+          this.isApproxPathIdMatch(pid, targetIdStr)
+        ) {
+          el.classList.toggle("active", isFullyVisible);
+        }
+      });
       updateUIState({ loadedFiles: [...state.loadedFiles] });
     }
   };
