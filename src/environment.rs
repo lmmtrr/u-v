@@ -8,6 +8,7 @@ use unityfs::{Bundle, Reader, SerializedFile, UnityValue, UnityVersion};
 use unityfs::assets::AssetManager;
 use unityfs::classes::{texture2d::Texture2D, mesh::Mesh};
 use unityfs::classes::TryFromUnityValue;
+use unityfs::math::Vector3;
 #[derive(Serialize)]
 pub enum ClassType {
     GameObject(serde_json::Value),
@@ -1132,7 +1133,7 @@ impl Environment {
         let src_file = source_file.as_string();
         let cached = self.cached_mesh(path_id, src_file)?;
         let mesh = cached.1.as_ref()?;
-        let verts = mesh.get_vertices().ok()?;
+        let verts = mesh_vec3(mesh, 0)?;
         let mut flat = Vec::with_capacity(verts.len() * 3);
         for v in verts {
             flat.push(v.x);
@@ -1147,7 +1148,7 @@ impl Environment {
         let src_file = source_file.as_string();
         let cached = self.cached_mesh(path_id, src_file)?;
         let mesh = cached.1.as_ref()?;
-        let norms = mesh.get_normals().ok()?;
+        let norms = mesh_vec3(mesh, 1)?;
         let mut flat = Vec::with_capacity(norms.len() * 3);
         for n in norms {
             flat.push(n.x);
@@ -1400,7 +1401,7 @@ impl Environment {
         let src_file = source_file.as_string();
         let cached = self.cached_mesh(path_id, src_file)?;
         let mesh = cached.1.as_ref()?;
-        let verts = mesh.get_vertices().ok()?;
+        let verts = mesh_vec3(mesh, 0)?;
         let m: [f32; 16] = matrix.try_into().ok()?;
         let mut flat = Vec::with_capacity(verts.len() * 3);
         for v in verts {
@@ -1417,7 +1418,7 @@ impl Environment {
         let src_file = source_file.as_string();
         let cached = self.cached_mesh(path_id, src_file)?;
         let mesh = cached.1.as_ref()?;
-        let norms = mesh.get_normals().ok()?;
+        let norms = mesh_vec3(mesh, 1)?;
         let m: [f32; 16] = matrix.try_into().ok()?;
         let mut flat = Vec::with_capacity(norms.len() * 3);
         for n in norms {
@@ -1488,6 +1489,30 @@ fn transform_normal(m: &[f32; 16], x: f32, y: f32, z: f32) -> (f32, f32, f32) {
         let rz = x * m[2] + y * m[6] + z * m[10];
         (rx, ry, rz)
     }
+}
+fn mesh_vec3(mesh: &Mesh, channel: usize) -> Option<Vec<Vector3>> {
+    let primary = if channel == 0 { mesh.get_vertices() } else { mesh.get_normals() };
+    if let Ok(values) = primary {
+        return Some(values);
+    }
+    let ch = mesh.m_VertexData.m_Channels.get(channel)?;
+    if (ch.dimension & 0xF) < 3 || ch.format != 1 {
+        return None;
+    }
+    let data = &mesh.m_VertexData.m_DataSize.as_ref().or(mesh.m_VertexData._typelessdata.as_ref())?.0;
+    let stride = mesh.get_stream_stride(ch.stream);
+    let stream_offset = mesh.get_stream_offset(ch.stream);
+    let count = mesh.m_VertexData.m_VertexCount as usize;
+    let half = |at: usize| -> Option<f32> {
+        let b = data.get(at..at + 2)?;
+        Some(unityfs::classes::mesh::f16_to_f32(u16::from_le_bytes([b[0], b[1]])))
+    };
+    let mut result = Vec::with_capacity(count);
+    for i in 0..count {
+        let base = stream_offset + i * stride + ch.offset as usize;
+        result.push(Vector3 { x: half(base)?, y: half(base + 2)?, z: half(base + 4)? });
+    }
+    Some(result)
 }
 fn extract_uv_channel(mesh: &Mesh, uv_index: usize) -> Option<Vec<f32>> {
     let vertex_count = mesh.get_vertex_count();
