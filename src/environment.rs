@@ -217,6 +217,48 @@ pub(crate) fn decompress_texture(width: usize, height: usize, format: i32, image
             }
             success = true;
         }
+        13 => {
+            for (i, chunk) in safe_image_data.chunks_exact(2).enumerate().take(width * height) {
+                let val = u16::from_le_bytes([chunk[0], chunk[1]]);
+                let r = ((val >> 12) & 0xF) as u8 * 17;
+                let g = ((val >> 8) & 0xF) as u8 * 17;
+                let b = ((val >> 4) & 0xF) as u8 * 17;
+                let a = (val & 0xF) as u8 * 17;
+                decompressed[i] = u32::from_le_bytes([b, g, r, a]);
+            }
+            success = true;
+        }
+        9 | 15 | 16 | 18 | 19 | 62 | 63 | 72 | 73 | 74 => {
+            let (channels, channel_size) = match format {
+                9 => (1, 2),
+                15 => (1, 2),
+                16 => (2, 2),
+                18 => (1, 4),
+                19 => (2, 4),
+                62 => (2, 1),
+                63 => (1, 1),
+                72 => (2, 2),
+                73 => (3, 2),
+                _ => (4, 2),
+            };
+            let is_float = matches!(format, 15 | 16 | 18 | 19);
+            let to_u8 = |c: &[u8]| -> u8 {
+                match (is_float, channel_size) {
+                    (true, 2) => (unityfs::classes::mesh::f16_to_f32(u16::from_le_bytes([c[0], c[1]])).clamp(0.0, 1.0) * 255.0 + 0.5) as u8,
+                    (true, _) => (f32::from_le_bytes([c[0], c[1], c[2], c[3]]).clamp(0.0, 1.0) * 255.0 + 0.5) as u8,
+                    (false, 1) => c[0],
+                    (false, _) => c[1],
+                }
+            };
+            for (i, px) in safe_image_data.chunks_exact(channels * channel_size).enumerate().take(width * height) {
+                let mut rgba = [0u8, 0, 0, 255];
+                for c in 0..channels {
+                    rgba[c] = to_u8(&px[c * channel_size..(c + 1) * channel_size]);
+                }
+                decompressed[i] = u32::from_le_bytes([rgba[2], rgba[1], rgba[0], rgba[3]]);
+            }
+            success = true;
+        }
         14 => {
             for (i, chunk) in safe_image_data.chunks_exact(4).enumerate().take(width * height) {
                 decompressed[i] = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
