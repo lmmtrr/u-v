@@ -8,12 +8,21 @@ import { state } from "../../state";
 import { setupSpringBones } from "../../physics_system";
 import { computeCRC32, createSorter, normalizeHash } from "../../utils";
 import { updateProgress } from "../../progress";
-import type { MeshMeta, TextureMeta, UnityObject, JSONValue, LoadedFile } from "../../types";
+import type {
+  MeshMeta,
+  TextureMeta,
+  UnityObject,
+  JSONValue,
+  LoadedFile,
+} from "../../types";
 import { processOrphanedMeshes } from "../../orphan_resolver";
 import { resolveRendererTextures, isValidPathId } from "../../texture_resolver";
 import { instantiateMesh, getRelativeMatrix } from "../../mesh_builder";
 import { findRoot, computeGenericPartAttachments } from "../../bone_system";
-import { buildExternalRefIndex, type ExternalRefIndex } from "../../external_refs";
+import {
+  buildExternalRefIndex,
+  type ExternalRefIndex,
+} from "../../external_refs";
 import { normalizeLoadedFileIds, getRawPathId } from "../../id_space";
 import type { EngineScene } from "../asset_engine";
 type Lookup = {
@@ -46,12 +55,15 @@ type RendererRecord = {
 export class UnitySceneBuilder {
   private files: LoadedFile[] = [];
   constructor(private scene: Scene) {}
-  public async build(files: LoadedFile[], engine: string): Promise<EngineScene> {
+  public async build(
+    files: LoadedFile[],
+    engine: string,
+  ): Promise<EngineScene> {
     this.files = files;
     const objects = this.aggregateObjectsAndHashes();
     const lookup = this.classifyObjects(objects);
     this.applyGameObjectActiveState(objects, lookup);
-    this.applyLODGroups(objects);
+    this.applyLODGroups(objects, lookup);
     const meshSourceFiles = new Set<string>();
     this.files.forEach((f) => {
       const hasMesh = f.objects.some((obj) => {
@@ -209,7 +221,12 @@ export class UnitySceneBuilder {
         clipData: clip.clipData as UnityObject,
       })),
       createPhysics: () =>
-        setupSpringBones(objects, transformNodes, skeletons as never, lookup.transformsByGo as never),
+        setupSpringBones(
+          objects,
+          transformNodes,
+          skeletons as never,
+          lookup.transformsByGo as never,
+        ),
     };
   }
   private aggregateObjectsAndHashes(): UnityObject[] {
@@ -244,7 +261,7 @@ export class UnitySceneBuilder {
     state.allObjects = objects;
     return objects;
   }
-  private applyLODGroups(objects: UnityObject[]): void {
+  private applyLODGroups(objects: UnityObject[], lookup: Lookup): void {
     const lod0 = new Set<string>();
     const lowerLods = new Set<string>();
     objects.forEach((obj) => {
@@ -264,7 +281,10 @@ export class UnitySceneBuilder {
         });
       });
     });
-    if (lowerLods.size === 0) return;
+    const namedGroups = new Map<
+      string,
+      Array<{ renderer: Record<string, JSONValue>; rank: number }>
+    >();
     objects.forEach((obj) => {
       const renderer = (obj?.SkinnedMeshRenderer || obj?.MeshRenderer) as
         | Record<string, JSONValue>
@@ -274,7 +294,31 @@ export class UnitySceneBuilder {
       if (!rendererId) return;
       if (lowerLods.has(rendererId) && !lod0.has(rendererId)) {
         renderer.m_Enabled = false;
+        return;
       }
+      if (lod0.has(rendererId)) return;
+      const goId = String(
+        (renderer.m_GameObject as Record<string, JSONValue> | undefined)
+          ?.path_id || "",
+      );
+      const goName = String(lookup.gameObjects.get(goId)?.name || "");
+      const match = /^(.*)_lod(m?)(\d+)$/i.exec(goName);
+      if (!match) return;
+      const father = lookup.transformsByGo.get(goId)?.m_Father as
+        | Record<string, JSONValue>
+        | undefined;
+      const fatherId = String(father?.path_id || father?.m_PathID || "0");
+      const key = `${renderer.sourceFileName || "default"}/${fatherId}/${match[1].toLowerCase()}`;
+      const rank = (match[2] ? 1000 : 0) + Number(match[3]);
+      if (!namedGroups.has(key)) namedGroups.set(key, []);
+      namedGroups.get(key)!.push({ renderer, rank });
+    });
+    namedGroups.forEach((entries) => {
+      if (entries.length < 2) return;
+      const best = Math.min(...entries.map((e) => e.rank));
+      entries.forEach((e) => {
+        if (e.rank !== best) e.renderer.m_Enabled = false;
+      });
     });
   }
   private applyGameObjectActiveState(
@@ -317,9 +361,7 @@ export class UnitySceneBuilder {
         | undefined;
       if (!renderer) return;
       if (renderer.m_Enabled === false) return;
-      const go = renderer.m_GameObject as
-        | Record<string, JSONValue>
-        | undefined;
+      const go = renderer.m_GameObject as Record<string, JSONValue> | undefined;
       const goIdStr = go ? String(go.path_id || "") : "";
       if (!goIdStr) return;
       if (isGameObjectActive(goIdStr)) enabledCount++;
@@ -341,7 +383,10 @@ export class UnitySceneBuilder {
       renderersByGo: new Map<string, Record<string, JSONValue>>(),
       filtersByGo: new Map<string, Record<string, JSONValue>>(),
       texturesByFile: new Map<string, Map<string, TextureMeta>>(),
-      materialsByFile: new Map<string, Map<string, Record<string, JSONValue>>>(),
+      materialsByFile: new Map<
+        string,
+        Map<string, Record<string, JSONValue>>
+      >(),
       meshesByFile: new Map<string, Map<string, MeshMeta[]>>(),
       externalRefs: buildExternalRefIndex(this.files),
       animationClips: [],
@@ -768,8 +813,9 @@ export class UnitySceneBuilder {
               );
               const invNewParentWorldMatrix =
                 Matrix.Invert(newParentWorldMatrix);
-              const newLocalMatrix =
-                oldWorldMatrix.multiply(invNewParentWorldMatrix);
+              const newLocalMatrix = oldWorldMatrix.multiply(
+                invNewParentWorldMatrix,
+              );
               const newTranslation = new Vector3();
               const newRotation = new Quaternion();
               const newScaling = new Vector3();
@@ -932,7 +978,10 @@ export class UnitySceneBuilder {
             ?.path_id || "",
         );
       }
-      return { id: goId, name: String(lookup.gameObjects.get(goId)?.name || "") };
+      return {
+        id: goId,
+        name: String(lookup.gameObjects.get(goId)?.name || ""),
+      };
     };
     const renderers = objects
       .map((obj) => ({
@@ -975,7 +1024,11 @@ export class UnitySceneBuilder {
         (isCanonical === current.isCanonical &&
           textureCount > current.textureCount)
       ) {
-        bestRendererByMeshName.set(key, { renderer, textureCount, isCanonical });
+        bestRendererByMeshName.set(key, {
+          renderer,
+          textureCount,
+          isCanonical,
+        });
       }
     });
     const uniqueRenderers = Array.from(bestRendererByMeshName.values())
