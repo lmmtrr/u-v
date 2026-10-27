@@ -57,6 +57,7 @@ export const unityHandlers: WorkerHandlers = {
     const indices = env.getMeshIndices(pathId, sourceFileName) as Uint32Array | null;
     const skinIndices = env.getMeshSkinIndices(pathId, sourceFileName) as Uint32Array | null;
     const skinWeights = env.getMeshSkinWeights(pathId, sourceFileName) as Float32Array | null;
+    const shapeVertices = env.getMeshBlendShapeVertices(pathId, sourceFileName) as Float32Array | null;
     const transfer: ArrayBuffer[] = [];
     const payload: MeshResponse = {};
     if (vertices) {
@@ -86,6 +87,10 @@ export const unityHandlers: WorkerHandlers = {
     if (skinWeights) {
       payload.skinWeights = skinWeights;
       transfer.push(skinWeights.buffer as ArrayBuffer);
+    }
+    if (shapeVertices) {
+      payload.shapeVertices = shapeVertices;
+      transfer.push(shapeVertices.buffer as ArrayBuffer);
     }
     return { payload, transfer };
   },

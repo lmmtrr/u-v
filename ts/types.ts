@@ -32,6 +32,7 @@ export interface MeshResponse {
   indices?: Uint32Array | null;
   skinIndices?: Uint32Array | null;
   skinWeights?: Float32Array | null;
+  shapeVertices?: Float32Array | null;
 }
 export interface TextureMeta {
   path_id?: string | null;
@@ -75,11 +76,8 @@ export interface MeshMeta {
       frameIndex?: number;
       frameCount?: number;
     }>;
-    vertices?: Array<{
-      index?: number;
-      vertex?: [number, number, number] | number[];
-    }>;
   } | null;
+  m_ShapeVertices?: Float32Array | null;
   m_SubMeshes?: Array<{
     firstByte?: number;
     indexCount?: number;

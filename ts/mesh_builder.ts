@@ -171,6 +171,7 @@ export async function instantiateMesh(
         if (data.uv0) mesh_data.m_UV0 = data.uv0;
         if (data.uv1) mesh_data.m_UV1 = data.uv1;
         if (data.indices) mesh_data.m_Indices = data.indices;
+        if (data.shapeVertices) mesh_data.m_ShapeVertices = data.shapeVertices;
         if (data.skinIndices && data.skinWeights) {
           const skinData = [];
           for (let i = 0; i < data.skinIndices.length; i += 4) {
@@ -590,22 +591,23 @@ export async function instantiateMesh(
       const channel = rawChannel as { name?: string; frameCount?: number; frameIndex?: number } | null;
       if (channel && channel.frameCount && channel.frameCount > 0 && channel.frameIndex !== undefined && mesh_data.m_Shapes) {
         const shapes = mesh_data.m_Shapes.shapes;
-        const vertices = mesh_data.m_Shapes.vertices;
+        const vertices = mesh_data.m_ShapeVertices;
         if (shapes && vertices) {
           const shape = shapes[channel.frameIndex + channel.frameCount - 1];
           if (shape && shape.vertexCount !== undefined && shape.firstVertex !== undefined) {
             const target = new MorphTarget(channel.name || `shape_${channelIdx}`, 0, scene);
             const targetPositions = new Float32Array(transformedPositions.length);
             targetPositions.set(transformedPositions);
+            const delta = new Vector3();
             for (let i = 0; i < shape.vertexCount; i++) {
-              const mv = vertices[shape.firstVertex + i] as { index?: number; vertex?: [number, number, number] | number[] } | undefined;
-              if (mv && mv.vertex && mv.index !== undefined) {
-                const vIdx = mv.index * 3;
+              const entry: number = (shape.firstVertex + i) * 4;
+              if (entry + 3 < vertices.length && vertices[entry] >= 0) {
+                const vIdx = vertices[entry] * 3;
                 if (vIdx < targetPositions.length) {
-                  const delta = new Vector3(
-                    mv.vertex[0],
-                    mv.vertex[1],
-                    mv.vertex[2],
+                  delta.set(
+                    vertices[entry + 1],
+                    vertices[entry + 2],
+                    vertices[entry + 3],
                   );
                   const transformedDelta = Vector3.TransformNormal(
                     delta,

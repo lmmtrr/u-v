@@ -453,26 +453,16 @@ fn process_mesh(mesh: &Mesh, raw: &UnityValue, path_id: i64) -> serde_json::Valu
     serde_json::Value::Object(json_map)
 }
 fn process_blend_shapes(raw: &UnityValue) -> Option<serde_json::Value> {
-    let shapes_json = unity_value_to_json(raw.get("m_Shapes")?);
-    let channels = shapes_json.get("channels")?.as_array()?;
-    if channels.is_empty() {
+    let shapes = raw.get("m_Shapes")?;
+    let channels = unity_value_to_json(shapes.get("channels")?);
+    if channels.as_array()?.is_empty() {
         return None;
     }
-    let vec3 = |v: Option<&serde_json::Value>| -> serde_json::Value {
-        let c = |k: &str| v.and_then(|o| o.get(k)).and_then(|n| n.as_f64()).unwrap_or(0.0);
-        serde_json::json!([c("x"), c("y"), c("z")])
-    };
-    let vertices: Vec<serde_json::Value> = shapes_json.get("vertices").and_then(|v| v.as_array()).map(|arr| {
-        arr.iter().map(|v| serde_json::json!({
-            "index": v.get("index").cloned().unwrap_or(serde_json::Value::Null),
-            "vertex": vec3(v.get("vertex")),
-        })).collect()
-    }).unwrap_or_default();
+    let field = |name: &str| shapes.get(name).map(unity_value_to_json).unwrap_or(serde_json::json!([]));
     Some(serde_json::json!({
-        "vertices": vertices,
-        "shapes": shapes_json.get("shapes").cloned().unwrap_or(serde_json::json!([])),
+        "shapes": field("shapes"),
         "channels": channels,
-        "fullWeights": shapes_json.get("fullWeights").cloned().unwrap_or(serde_json::json!([])),
+        "fullWeights": field("fullWeights"),
     }))
 }
 fn process_skinned_mesh_renderer(val: &UnityValue, path_id: i64) -> serde_json::Value {
@@ -1220,6 +1210,26 @@ impl Environment {
         let cached = self.cached_mesh(path_id, src_file)?;
         let mesh = cached.1.as_ref()?;
         let flat = extract_uv_channel(&mesh, 1)?;
+        Some(Float32Array::from(flat.as_slice()))
+    }
+    #[wasm_bindgen]
+    pub fn getMeshBlendShapeVertices(&self, path_id: JsValue, source_file: JsValue) -> Option<Float32Array> {
+        let path_id = Self::parse_path_id(&path_id)?;
+        let cached = self.cached_mesh(path_id, source_file.as_string())?;
+        let UnityValue::Array(vertices) = cached.0.get("m_Shapes")?.get("vertices")? else {
+            return None;
+        };
+        if vertices.is_empty() {
+            return None;
+        }
+        let mut flat = Vec::with_capacity(vertices.len() * 4);
+        for v in vertices {
+            flat.push(v.get("index").map(Self::val_to_f32).unwrap_or(-1.0));
+            let vertex = v.get("vertex");
+            for axis in ["x", "y", "z"] {
+                flat.push(vertex.and_then(|p| p.get(axis)).map(Self::val_to_f32).unwrap_or(0.0));
+            }
+        }
         Some(Float32Array::from(flat.as_slice()))
     }
     #[wasm_bindgen]
