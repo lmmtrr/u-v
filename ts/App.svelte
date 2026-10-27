@@ -53,7 +53,18 @@
   let nextNotificationId = 0;
   let partFilters: Record<number, string> = {};
   let expandedParts: Record<string, boolean> = {};
+  let filterExpandedOverrides: Record<string, boolean> = {};
+  let lastPartFilters: Record<number, string> = {};
   let fileHeaderHeights: Record<number, number> = {};
+  $: {
+    for (const [fileIndexStr, q] of Object.entries(partFilters)) {
+      const fIdx = Number(fileIndexStr);
+      if (lastPartFilters[fIdx] !== q) {
+        lastPartFilters[fIdx] = q;
+        filterExpandedOverrides = {};
+      }
+    }
+  }
   $: filesWithMeshes = loadedFiles.filter(
     (file) =>
       !file.removedFromUI &&
@@ -717,7 +728,8 @@
                     {@const matchesMesh = part.name.toLowerCase().includes(query)}
                     {@const matchesSubmesh = subDetails.subMaterials.some(sub => sub.name.toLowerCase().includes(query))}
                     {@const isFilterMatch = !query || matchesMesh || matchesSubmesh}
-                    {@const isExpanded = expandedParts[part.id] || (query && matchesSubmesh)}
+                    {@const defaultExpanded = query ? (matchesSubmesh || !!expandedParts[part.id]) : !!expandedParts[part.id]}
+                    {@const isExpanded = query && filterExpandedOverrides[part.id] !== undefined ? filterExpandedOverrides[part.id] : defaultExpanded}
                     {@const isPartActive = part.enabled !== false && subDetails.subMaterials.every((sub) => sub.visible)}
                     {#if isFilterMatch}
                       <div class="part-group">
@@ -726,7 +738,13 @@
                           <div
                             class="part-expand-toggle"
                             class:expanded={isExpanded}
-                            on:click={() => (expandedParts[part.id] = !expandedParts[part.id])}
+                            on:click={() => {
+                              if (query) {
+                                filterExpandedOverrides = { ...filterExpandedOverrides, [part.id]: !isExpanded };
+                              } else {
+                                expandedParts = { ...expandedParts, [part.id]: !isExpanded };
+                              }
+                            }}
                           >
                             {isExpanded ? "▼" : "▶"}
                           </div>
