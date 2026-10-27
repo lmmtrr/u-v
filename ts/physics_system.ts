@@ -95,24 +95,24 @@ export const setupSpringBones = (
         if (processedBones.has(boneKey)) return;
         processedBones.add(boneKey);
         const targetBones: { bone: Bone; skeleton: Skeleton }[] = [];
-        const nodeName = node.name;
-        const scene = node.getScene();
-        if (scene && scene.skeletons) {
-          for (const skel of scene.skeletons) {
-            const b = skel.bones.find((bone) => bone.name === nodeName);
-            if (b) {
-              targetBones.push({ bone: b, skeleton: skel });
-            }
+        for (const [, skelData] of skeletons) {
+          const targetBone = skelData.boneMap.get(currentPathIdStr);
+          if (targetBone) {
+            targetBones.push({
+              bone: targetBone,
+              skeleton: skelData.skeleton,
+            });
           }
         }
         if (targetBones.length === 0) {
-          for (const [, skelData] of skeletons) {
-            const targetBone = skelData.boneMap.get(currentPathIdStr);
-            if (targetBone) {
-              targetBones.push({
-                bone: targetBone,
-                skeleton: skelData.skeleton,
-              });
+          const nodeName = node.name;
+          const scene = node.getScene();
+          if (scene && scene.skeletons) {
+            for (const skel of scene.skeletons) {
+              const b = skel.bones.find((bone) => bone.name === nodeName);
+              if (b) {
+                targetBones.push({ bone: b, skeleton: skel });
+              }
             }
           }
         }
