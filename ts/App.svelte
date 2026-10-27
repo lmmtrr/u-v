@@ -205,7 +205,7 @@
     return goNames.get(rootGoId) || "";
   }
   function getBestParts(file: LoadedFile) {
-    type Part = { name: string; label: string; id: string; enabled: unknown; isCreated: boolean; root: string; uniqueName: boolean };
+    type Part = { name: string; label: string; id: string; enabled: unknown; isCreated: boolean; root: string; uniqueName: boolean; initiallyEnabled: boolean; textureCount: number };
     const parts: Part[] = [];
     const goNames = new Map<string, string>();
     file.objects.forEach((obj: UnityObject) => {
@@ -223,6 +223,7 @@
       const partNameStr =
         String(renderer.name || meshMeta?.name || "part_" + partIdStr);
       const goId = String((renderer.m_GameObject as Record<string, unknown> | undefined)?.path_id ?? "");
+      const texturePathIds = renderer.texture_path_ids as unknown[] | undefined;
       parts.push({
         name: partNameStr,
         label: partNameStr,
@@ -231,7 +232,20 @@
         isCreated,
         root: goId && goId !== "0" ? rootNameOf(goId, goNames) : "",
         uniqueName: true,
+        initiallyEnabled: renderer.initiallyEnabled !== false,
+        textureCount: (texturePathIds || []).filter((id: unknown) => String(id) !== "0").length,
       });
+    });
+    const groups = new Map<string, Part[]>();
+    parts.forEach((part) => groups.set(part.name, [...(groups.get(part.name) ?? []), part]));
+    parts.length = 0;
+    groups.forEach((group) => {
+      const shown = group.filter((part) => part.initiallyEnabled);
+      if (shown.length > 0) {
+        parts.push(...shown);
+        return;
+      }
+      parts.push(group.reduce((best, part) => (part.textureCount > best.textureCount ? part : best)));
     });
     const rendererNames = new Set(parts.map((part) => part.name));
     file.objects
@@ -260,6 +274,8 @@
           isCreated,
           root: "",
           uniqueName: true,
+          initiallyEnabled: true,
+          textureCount: 0,
         });
       });
     const nameCounts = new Map<string, number>();

@@ -117,6 +117,9 @@ export async function instantiateMesh(
     scene,
   );
   customMesh.alwaysSelectAsActiveMesh = true;
+  if (renderer.initiallyEnabled === undefined) {
+    renderer.initiallyEnabled = renderer.m_Enabled !== false;
+  }
   customMesh.setEnabled(renderer.m_Enabled !== false);
   let activeSkeleton: Skeleton | null = null;
   let activeLocalToGlobal: Int32Array | null = null;

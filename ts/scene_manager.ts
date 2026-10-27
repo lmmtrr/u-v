@@ -143,7 +143,9 @@ export class SceneManager {
       state.partTranslations.delete(cleanTargetId);
     }
     const createdPathIds = new Set<string>(
-      state.createdMeshes.map((m) => String(m.metadata?.rendererPathId)),
+      state.createdMeshes
+          .filter((m) => m.metadata?.isBest !== false)
+          .map((m) => String(m.metadata?.rendererPathId)),
     );
     updateUIState({
       loadedFiles: [...state.loadedFiles],
@@ -814,7 +816,9 @@ export class SceneManager {
     }
     if (!skipUIUpdate) {
       const createdPathIds = new Set(
-        state.createdMeshes.map((m) => String(m.metadata?.rendererPathId)),
+        state.createdMeshes
+          .filter((m) => m.metadata?.isBest !== false)
+          .map((m) => String(m.metadata?.rendererPathId)),
       );
       state.fileListPanel = createFileListUI(
         state.advancedTexture,
