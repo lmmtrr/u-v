@@ -1,6 +1,6 @@
 use wasm_bindgen::prelude::*;
 use js_sys::{Float32Array, Uint32Array, Uint8Array};
-use serde::{Serialize, Deserialize};
+use serde::Serialize;
 use std::collections::HashMap;
 use unityfs::{Bundle, Reader, SerializedFile, UnityValue, UnityVersion};
 use unityfs::assets::AssetManager;
@@ -658,124 +658,6 @@ pub fn preprocess_avatar_json(json: &mut serde_json::Value) {
     if let serde_json::Value::Object(map) = json {
         map.insert("humanoidBones".to_string(), serde_json::Value::Object(humanoid_bones));
     }
-}
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-pub struct WasmQuaternion {
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
-    pub w: f32,
-}
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-pub struct WasmVector3 {
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
-}
-#[derive(Debug, Clone, Copy)]
-pub struct SimpleQuat {
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
-    pub w: f32,
-}
-impl SimpleQuat {
-    pub fn identity() -> Self {
-        SimpleQuat { x: 0.0, y: 0.0, z: 0.0, w: 1.0 }
-    }
-    pub fn from_axis_angle(axis_x: f32, axis_y: f32, axis_z: f32, angle: f32) -> Self {
-        let half_angle = angle * 0.5;
-        let s = half_angle.sin();
-        let c = half_angle.cos();
-        SimpleQuat {
-            x: axis_x * s,
-            y: axis_y * s,
-            z: axis_z * s,
-            w: c,
-        }
-    }
-    pub fn multiply(&self, other: &Self) -> Self {
-        SimpleQuat {
-            x: self.w * other.x + self.x * other.w + self.y * other.z - self.z * other.y,
-            y: self.w * other.y - self.x * other.z + self.y * other.w + self.z * other.x,
-            z: self.w * other.z + self.x * other.y - self.y * other.x + self.z * other.w,
-            w: self.w * other.w - self.x * other.x - self.y * other.y - self.z * other.z,
-        }
-    }
-    pub fn inverse(&self) -> Self {
-        let norm_sq = self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w;
-        if norm_sq > 0.0 {
-            let inv_norm = 1.0 / norm_sq;
-            SimpleQuat {
-                x: -self.x * inv_norm,
-                y: -self.y * inv_norm,
-                z: -self.z * inv_norm,
-                w: self.w * inv_norm,
-            }
-        } else {
-            *self
-        }
-    }
-    pub fn normalize(&self) -> Self {
-        let norm = (self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w).sqrt();
-        if norm > 0.0 {
-            SimpleQuat {
-                x: self.x / norm,
-                y: self.y / norm,
-                z: self.z / norm,
-                w: self.w / norm,
-            }
-        } else {
-            *self
-        }
-    }
-}
-pub fn compute_humanoid_local_rotation_internal(
-    pre_q: WasmQuaternion,
-    post_q: WasmQuaternion,
-    limit_min: WasmVector3,
-    limit_max: WasmVector3,
-    muscle_x: f32,
-    muscle_y: f32,
-    muscle_z: f32,
-) -> WasmQuaternion {
-    let angle_x = if muscle_x > 0.0 { muscle_x * limit_max.x } else { muscle_x * limit_min.x.abs() };
-    let angle_y = if muscle_y > 0.0 { muscle_y * limit_max.y } else { muscle_y * limit_min.y.abs() };
-    let angle_z = if muscle_z > 0.0 { muscle_z * limit_max.z } else { muscle_z * limit_min.z.abs() };
-    let qx = SimpleQuat::from_axis_angle(1.0, 0.0, 0.0, angle_x);
-    let qy = SimpleQuat::from_axis_angle(0.0, 1.0, 0.0, angle_y);
-    let qz = SimpleQuat::from_axis_angle(0.0, 0.0, 1.0, angle_z);
-    let muscle_rot = qy.multiply(&qx).multiply(&qz);
-    let pq = SimpleQuat { x: pre_q.x, y: pre_q.y, z: pre_q.z, w: pre_q.w };
-    let poq = SimpleQuat { x: post_q.x, y: post_q.y, z: post_q.z, w: post_q.w };
-    let res = pq.multiply(&muscle_rot).multiply(&poq.inverse()).normalize();
-    WasmQuaternion {
-        x: res.x,
-        y: res.y,
-        z: res.z,
-        w: res.w,
-    }
-}
-#[wasm_bindgen]
-pub fn compute_humanoid_local_rotation(
-    pre_q_val: &JsValue,
-    post_q_val: &JsValue,
-    limit_min_val: &JsValue,
-    limit_max_val: &JsValue,
-    muscle_x: f32,
-    muscle_y: f32,
-    muscle_z: f32,
-) -> JsValue {
-    let pre_q: WasmQuaternion = serde_wasm_bindgen::from_value(pre_q_val.clone())
-        .unwrap_or(WasmQuaternion { x: 0.0, y: 0.0, z: 0.0, w: 1.0 });
-    let post_q: WasmQuaternion = serde_wasm_bindgen::from_value(post_q_val.clone())
-        .unwrap_or(WasmQuaternion { x: 0.0, y: 0.0, z: 0.0, w: 1.0 });
-    let limit_min: WasmVector3 = serde_wasm_bindgen::from_value(limit_min_val.clone())
-        .unwrap_or(WasmVector3 { x: 0.0, y: 0.0, z: 0.0 });
-    let limit_max: WasmVector3 = serde_wasm_bindgen::from_value(limit_max_val.clone())
-        .unwrap_or(WasmVector3 { x: 0.0, y: 0.0, z: 0.0 });
-    let res = compute_humanoid_local_rotation_internal(pre_q, post_q, limit_min, limit_max, muscle_x, muscle_y, muscle_z);
-    serde_wasm_bindgen::to_value(&res).unwrap_or(JsValue::NULL)
 }
 #[wasm_bindgen]
 impl Environment {

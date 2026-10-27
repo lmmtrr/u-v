@@ -51,8 +51,8 @@ const scene = createScene(engine);
 setupResizeListener(engine);
 const sceneManager = new SceneManager(scene);
 const onFilesLoaded = () => sceneManager.rebuildScene();
-setupDropzone((files) => loadFiles(files, null, state, onFilesLoaded));
-setupFileInput((files) => loadFiles(files, null, state, onFilesLoaded));
+setupDropzone((files) => loadFiles(files, state, onFilesLoaded));
+setupFileInput((files) => loadFiles(files, state, onFilesLoaded));
 window.onSkeletonToggle = (v: boolean) => {
   sceneManager.toggleSkeletonViewer(v);
 };
@@ -110,7 +110,7 @@ if (urlInput && submitBtn) {
       }
       const file = new File([blob], filename);
       showNotification(`Asset downloaded. Starting import...`, "success");
-      await loadFiles([file], null, state, onFilesLoaded);
+      await loadFiles([file], state, onFilesLoaded);
     } catch (error: any) {
       showNotification(
         error instanceof TypeError

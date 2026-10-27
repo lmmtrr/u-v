@@ -217,14 +217,6 @@ export const setupSpringBones = (
   entries.sort((a, b) => a.depth - b.depth);
   return entries;
 };
-export const setupDynamicBones = (
-  objects: UnityObject[],
-  transformNodes: Map<string, TransformNode>,
-  skeletons: Map<string, { skeleton: Skeleton; boneMap: Map<string, Bone> }>,
-  transformsByGameObjectId: Map<string, UnityObject>,
-): PhysicsEntry[] => {
-  return [];
-};
 const updateSpringBone = (sb: PhysicsEntry, fixedDtSqr: number) => {
   const node = sb.node;
   const headPos = node.getAbsolutePosition();

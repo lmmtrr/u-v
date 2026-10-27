@@ -153,24 +153,6 @@ export interface ViewerState {
   _warnedEmptyAnim?: boolean;
   clearState(): void;
 }
-export interface EnvironmentInterface {
-  getMeshVertices(
-    path_id: PathId,
-    source_file: string,
-  ): Float32Array | undefined | null;
-  getMeshNormals(
-    path_id: PathId,
-    source_file: string,
-  ): Float32Array | undefined | null;
-  getMeshUV0s(path_id: PathId, source_file: string): Float32Array | undefined | null;
-  getMeshUV1s(path_id: PathId, source_file: string): Float32Array | undefined | null;
-  getMeshIndices(
-    path_id: PathId,
-    source_file: string,
-  ): Uint32Array | undefined | null;
-  getTextureData(path_id: PathId, source_file: string): Uint8Array | undefined | null;
-  getAssetInfo?(): string;
-}
 export interface StreamedCurveKeyType {
   index: number;
   coeff: number[];

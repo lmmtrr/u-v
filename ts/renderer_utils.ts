@@ -110,11 +110,6 @@ export const toRGBABytes = async (
   out.set(src);
   return out;
 };
-export const pickBestMeshForRenderer = (
-  meshPathId: string,
-  meshesByPathId: Map<string, MeshMeta[]>,
-): MeshMeta | null =>
-  pickBestMesh(meshesByPathId.get(String(meshPathId)) || null);
 export const pickBestMesh = (
   candidates: MeshMeta[] | null | undefined,
 ): MeshMeta | null => {

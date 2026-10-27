@@ -4,7 +4,6 @@ import type { ViewerState } from "./types";
 import { groupFilesByEngine } from "./engines/registry";
 export const loadFiles = async (
   files: FileList | File[],
-  _EnvironmentClass: unknown,
   state: ViewerState,
   onComplete: () => Promise<void> | void,
 ): Promise<void> => {
