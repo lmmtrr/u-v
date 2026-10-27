@@ -148,6 +148,8 @@
       const renderer = (obj.SkinnedMeshRenderer || obj.MeshRenderer) as Record<string, unknown>;
       const partIdStr = String(renderer.path_id || "");
       if (!partIdStr) return;
+      const isCreated = !!(createdPathIds && createdPathIds.has(partIdStr));
+      if (!isCreated) return;
       const meshMeta = renderer.mesh as Record<string, unknown> | undefined;
       const partNameStr =
         String(renderer.name || meshMeta?.name || "part_" + partIdStr);
@@ -155,13 +157,8 @@
       const textureCount = (texturePathIds || []).filter(
         (id: unknown) => String(id) !== "0",
       ).length;
-      const isCreated = !!(createdPathIds && createdPathIds.has(partIdStr));
       const current = bestPartsByName.get(partNameStr);
-      if (
-        !current ||
-        isCreated ||
-        (!current.isCreated && textureCount > current.textureCount)
-      ) {
+      if (!current || textureCount > current.textureCount) {
         bestPartsByName.set(partNameStr, {
           name: partNameStr,
           id: partIdStr,
