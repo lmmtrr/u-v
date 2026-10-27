@@ -572,19 +572,42 @@ export const buildAnimationData = (
       const mCurve = uCurveData?.m_Curve as Array<Record<string, JSONValue>> | undefined;
       if (mCurve) {
         components.forEach((comp) => {
-          preparedCurves[comp] = mCurve.map((k) => {
-            const kVal = k.value;
-            const val = typeof kVal === "object" && kVal !== null ? Number((kVal as Record<string, number>)[comp]) : Number(kVal);
-            const frameIdx = Math.round(Number(k.time ?? 0) * frameRate);
+          const read = (k: Record<string, JSONValue>, field: string) => {
+            const raw = k[field];
+            return typeof raw === "object" && raw !== null
+              ? Number((raw as Record<string, number>)[comp])
+              : Number(raw);
+          };
+          const keys: AnimationCurveKey[] = mCurve.map((k) => {
+            const time = Number(k.time ?? 0);
+            const frameIdx = Math.round(time * frameRate);
             if (frameIdx > animationData.maxFrame) {
               animationData.maxFrame = frameIdx;
             }
             return {
-              time: Number(k.time ?? 0),
-              frame: frameIdx,
-              value: val,
+              time,
+              frame: time * frameRate,
+              value: read(k, "value"),
             };
           });
+          for (let i = 0; i + 1 < keys.length; i++) {
+            const span = keys[i + 1].frame - keys[i].frame;
+            if (!(span > 0)) continue;
+            if (mCurve[i].outSlope === undefined || mCurve[i + 1].inSlope === undefined) continue;
+            const dt = keys[i + 1].time - keys[i].time;
+            const v0 = keys[i].value;
+            const v1 = keys[i + 1].value;
+            const m0 = read(mCurve[i], "outSlope") * dt;
+            const m1 = read(mCurve[i + 1], "inSlope") * dt;
+            if (!Number.isFinite(m0) || !Number.isFinite(m1)) {
+              keys[i].cubic = [NaN, 0, 0];
+              continue;
+            }
+            const a = 2 * (v0 - v1) + m0 + m1;
+            const b = 3 * (v1 - v0) - 2 * m0 - m1;
+            keys[i].cubic = [a / (span * span * span), b / (span * span), m0 / span];
+          }
+          preparedCurves[comp] = keys;
         });
       }
       for (const mesh of createdMeshes) {
