@@ -23,7 +23,7 @@ import { Texture } from "@babylonjs/core/Materials/Textures/texture";
 import type { Observer } from "@babylonjs/core/Misc/observable";
 import { state } from "./state";
 import { applyOutlines, disposeOutlines } from "./outline";
-import { rgbaToDataURL } from "./renderer_utils";
+import { createRGBATexture } from "./renderer_utils";
 import {
   createAnimationUI,
   createFileListUI,
@@ -1551,15 +1551,14 @@ const bakeOverlayTexture = async (
     }
   }
   const name = `${source.name}_${additive ? "add" : "mul"}`;
-  const baked = Texture.CreateFromBase64String(
-    rgbaToDataURL(out, width, height),
+  const baked = createRGBATexture(
+    out,
+    width,
+    height,
     name,
     scene,
-    false,
-    false,
     Texture.BILINEAR_SAMPLINGMODE,
   );
-  baked.name = name;
   baked.hasAlpha = true;
   baked.wrapU = source.wrapU;
   baked.wrapV = source.wrapV;

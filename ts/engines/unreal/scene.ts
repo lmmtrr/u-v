@@ -13,7 +13,7 @@ import { MorphTargetManager } from "@babylonjs/core/Morph/morphTargetManager";
 import { MorphTarget } from "@babylonjs/core/Morph/morphTarget";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
-import { rgbaToDataURL } from "../../renderer_utils";
+import { createRGBATexture } from "../../renderer_utils";
 import { rememberUnrealRestPose } from "./animation";
 import type { JSONValue, LoadedFile } from "../../types";
 import type { UnrealMesh, UnrealSocket, UnrealTexture } from "./types";
@@ -50,7 +50,7 @@ const OUTLINE_MATERIAL = /(^|_)OL(_|$)|outline|^MatLine/i;
 type TextureLookup = (path: string | null | undefined) => Texture | null;
 
 let previousResources: Array<{ dispose: () => void }> = [];
-const pngCache = new WeakMap<UnrealTexture, { dataUrl: string; hasAlpha: boolean }>();
+const alphaCache = new WeakMap<UnrealTexture, boolean>();
 
 const hasTranslucentPixels = (pixels: Uint8Array): boolean => {
   for (let i = 3; i < pixels.length; i += 4) {
@@ -69,25 +69,21 @@ const createTextureLookup = (scene: Scene, files: LoadedFile[]): TextureLookup =
     if (cached) return cached;
     const src = sources.get(path);
     if (!src) return null;
-    let encoded = pngCache.get(src);
-    if (!encoded) {
-      encoded = {
-        dataUrl: rgbaToDataURL(src.pixels, src.width, src.height),
-        hasAlpha: hasTranslucentPixels(src.pixels),
-      };
-      pngCache.set(src, encoded);
+    let hasAlpha = alphaCache.get(src);
+    if (hasAlpha === undefined) {
+      hasAlpha = hasTranslucentPixels(src.pixels);
+      alphaCache.set(src, hasAlpha);
     }
     const name = path.split("/").pop() || path;
-    const texture = Texture.CreateFromBase64String(
-      encoded.dataUrl,
+    const texture = createRGBATexture(
+      src.pixels,
+      src.width,
+      src.height,
       name,
       scene,
-      false,
-      false,
       Texture.TRILINEAR_SAMPLINGMODE,
     );
-    texture.name = name;
-    texture.hasAlpha = encoded.hasAlpha;
+    texture.hasAlpha = hasAlpha;
     created.set(path, texture);
     previousResources.push(texture);
     return texture;

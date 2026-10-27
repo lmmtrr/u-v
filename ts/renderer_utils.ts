@@ -1,6 +1,7 @@
 import { Scene } from "@babylonjs/core/scene";
 import { Material } from "@babylonjs/core/Materials/material";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture";
+import { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { MultiMaterial } from "@babylonjs/core/Materials/multiMaterial";
@@ -28,20 +29,25 @@ type TextureInfo =
     }
   | null;
 type TextureSlot = TextureInfo;
-export const rgbaToDataURL = (
+export const createRGBATexture = (
   rgbaBytes: Uint8Array,
   width: number,
   height: number,
- ): string => {
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return "";
-  const imgData = ctx.createImageData(width, height);
-  imgData.data.set(rgbaBytes);
-  ctx.putImageData(imgData, 0, 0);
-  return canvas.toDataURL("image/png");
+  name: string,
+  scene: Scene,
+  samplingMode: number,
+): Texture => {
+  const texture = RawTexture.CreateRGBATexture(
+    rgbaBytes,
+    width,
+    height,
+    scene,
+    true,
+    false,
+    samplingMode,
+  );
+  texture.name = name;
+  return texture;
 };
 const ALPHA_OPAQUE_THRESHOLD = 250;
 const ALPHA_PIXEL_RATIO = 0.005;
@@ -152,16 +158,14 @@ const resolveTexture = async (
       if (rgbaBytes.length === width * height * 4) {
         if (isNormalMap) unpackUnityNormal(rgbaBytes);
         const originalName = texData?.name || texData?.m_Name || "";
-        const dataUrl = rgbaToDataURL(rgbaBytes, width, height);
-        const texture = Texture.CreateFromBase64String(
-          dataUrl,
+        const texture = createRGBATexture(
+          rgbaBytes,
+          width,
+          height,
           originalName || "Texture",
           scene,
-          false,
-          false,
           Texture.BILINEAR_SAMPLINGMODE,
         );
-        texture.name = originalName || "Texture";
         if (allowAlpha !== false && hasMeaningfulAlpha(rgbaBytes)) {
           texture.hasAlpha = true;
         }
@@ -193,6 +197,10 @@ const applyTextureTransform = (
   }
   const custom = texInfo as { scale?: { x: number; y: number }; offset?: { x: number; y: number } };
   const transformed = texture.clone();
+  transformed.name = texture.name;
+  transformed.hasAlpha = texture.hasAlpha;
+  transformed.wrapU = texture.wrapU;
+  transformed.wrapV = texture.wrapV;
   transformed.uScale = custom.scale?.x ?? 1.0;
   transformed.vScale = custom.scale?.y ?? 1.0;
   transformed.uOffset = custom.offset?.x ?? 0.0;
