@@ -1402,28 +1402,16 @@ impl Environment {
                 let obj = sf.object_map.get(&path_id).map(|&idx| &sf.objects[idx])?;
                 let start_pos = obj.byte_start;
                 let end_pos = obj.byte_start + obj.byte_size;
-                let obj_data = &sf.data[start_pos..end_pos.min(sf.data.len())];
+                let obj_data = sf.data.get(start_pos..end_pos.min(sf.data.len()))?;
                 let width = tex.m_Width as usize;
                 let height = tex.m_Height as usize;
                 let format = tex.m_TextureFormat;
                 let expected = tex.m_CompleteImageSize as usize;
-                let is_crunch = matches!(format, 28 | 29 | 64 | 65);                
-                if is_crunch {
-                    for header_len in (90..150).step_by(2) {
-                        if header_len < obj_data.len() {
-                            let candidate = &obj_data[header_len..];
-                            if candidate.len() >= 4 {
-                                let is_ok = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                                    let mut decomp = vec![0u32; width * height];
-                                    texture2ddecoder::decode_unity_crunch(candidate, width, height, &mut decomp).is_ok()
-                                })).unwrap_or(false);
-                                if is_ok {
-                                    return Some(candidate.to_vec());
-                                }
-                            }
-                        }
+                if matches!(format, 28 | 29 | 64 | 65) {
+                    if let Some(payload) = find_crunch_payload(obj_data, width, height) {
+                        return Some(payload.to_vec());
                     }
-                }                
+                }
                 if expected > 0 && end_pos <= sf.data.len() && end_pos >= expected {
                     return Some(sf.data[end_pos - expected..end_pos].to_vec());
                 } else if start_pos + expected <= sf.data.len() {
@@ -1543,6 +1531,24 @@ fn transform_normal(m: &[f32; 16], x: f32, y: f32, z: f32) -> (f32, f32, f32) {
         let rz = x * m[2] + y * m[6] + z * m[10];
         (rx, ry, rz)
     }
+}
+fn find_crunch_payload(data: &[u8], width: usize, height: usize) -> Option<&[u8]> {
+    const MIN_HEADER_SIZE: usize = 74;
+    let be16 = |at: usize| u16::from_be_bytes([data[at], data[at + 1]]) as usize;
+    (0..data.len().saturating_sub(MIN_HEADER_SIZE)).find_map(|start| {
+        if data[start] != b'H' || data[start + 1] != b'x' {
+            return None;
+        }
+        let header_size = be16(start + 2);
+        let data_size = u32::from_be_bytes([data[start + 6], data[start + 7], data[start + 8], data[start + 9]]) as usize;
+        if header_size < MIN_HEADER_SIZE || data_size < header_size || start + data_size > data.len() {
+            return None;
+        }
+        if be16(start + 12) != width || be16(start + 14) != height {
+            return None;
+        }
+        Some(&data[start..start + data_size])
+    })
 }
 fn mesh_vec3(mesh: &Mesh, channel: usize) -> Option<Vec<Vector3>> {
     let primary = if channel == 0 { mesh.get_vertices() } else { mesh.get_normals() };
