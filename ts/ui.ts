@@ -20,7 +20,7 @@ let savedProps = {
   animationLoop: true,
   animationSpeed: 1.0,
   onClearModel: (index: number) => {},
-  onRemovePart: (fileIndex: number, partId: string) => {},
+  onRemovePart: (fileIndex: number, partId: string, partName?: string) => {},
   onToggleVisibility: (fileIndex: number, partId: string, name: string) => {},
   onToggleAllVisibility: (
     visible: boolean,
@@ -177,7 +177,7 @@ export const createFileListUI = (
   advancedTexture: object | null,
   loadedFiles: LoadedFile[],
   onClearModel: (index: number) => void,
-  onRemovePart: (fileIndex: number, partId: PathId) => void,
+  onRemovePart: (fileIndex: number, partId: PathId, partName?: string) => void,
   onToggleVisibility: (fileIndex: number, partId: PathId, name: string) => void,
   onToggleAllVisibility: (
     visible: boolean,
@@ -208,8 +208,8 @@ export const createFileListUI = (
   updateApp({
     loadedFiles,
     onClearModel,
-    onRemovePart: (fileIdx: number, pid: string) =>
-      onRemovePart(fileIdx, pid as PathId),
+    onRemovePart: (fileIdx: number, pid: string, name?: string) =>
+      onRemovePart(fileIdx, pid as PathId, name),
     onToggleVisibility: (fileIdx: number, pid: string, name: string) =>
       onToggleVisibility(fileIdx, pid as PathId, name),
     onToggleAllVisibility: (

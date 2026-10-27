@@ -50,36 +50,73 @@ export class SceneManager {
     this.scene.transformNodes.slice().forEach((n) => n.dispose());
     state.clearState();
   }
-  public removePart = (fileIndex: number, partId: string) => {
+  public removePart = (
+    fileIndex: number,
+    partId: string,
+    partName?: string,
+  ) => {
     const file = state.loadedFiles[fileIndex];
     if (!file) return;
-    const targetId = partId;
-    file.objects = file.objects.filter((obj) => {
+    const targetId = String(partId);
+    const cleanTargetId = targetId.startsWith("orphan_")
+      ? targetId.slice(7)
+      : targetId;
+
+    const isMatchObj = (obj: UnityObject): boolean => {
       const type = Object.keys(obj)[0];
       const data = obj[type] as Record<string, unknown> | undefined;
-      const pathIdStr = data?.path_id;
-      return pathIdStr !== targetId;
-    });
-    state.allObjects = state.allObjects.filter((obj) => {
-      const type = Object.keys(obj)[0];
-      const data = obj[type] as Record<string, JSONValue> | undefined;
-      const pathIdStr = data?.path_id;
-      return pathIdStr !== targetId;
-    });
-    state.createdMeshes = state.createdMeshes.filter((mesh) => {
+      if (!data) return false;
+      const pid = String(data.path_id ?? "");
       if (
-        mesh.metadata &&
-        String(mesh.metadata.rendererPathId) === String(targetId)
+        pid &&
+        (pid === targetId ||
+          pid === cleanTargetId ||
+          `orphan_${pid}` === targetId)
       ) {
+        return true;
+      }
+      if (partName) {
+        const meshMeta = data.mesh as Record<string, unknown> | undefined;
+        const displayName = String(data.name || meshMeta?.name || "");
+        if (displayName && displayName === partName) {
+          return true;
+        }
+      }
+      return false;
+    };
+    file.objects = file.objects.filter((obj) => !isMatchObj(obj));
+    state.allObjects = state.allObjects.filter((obj) => !isMatchObj(obj));
+    state.createdMeshes = state.createdMeshes.filter((mesh) => {
+      if (!mesh.metadata) return true;
+      const rId = String(mesh.metadata.rendererPathId ?? "");
+      const idMatch =
+        rId === targetId ||
+        rId === cleanTargetId ||
+        `orphan_${rId}` === targetId ||
+        this.isApproxPathIdMatch(rId, targetId);
+      const nameMatch =
+        !!partName &&
+        ((mesh.name && mesh.name.toLowerCase() === partName.toLowerCase()) ||
+          (mesh.metadata.name &&
+            String(mesh.metadata.name).toLowerCase() ===
+              partName.toLowerCase()));
+      if (idMatch || nameMatch) {
         mesh.dispose();
         return false;
       }
       return true;
     });
-    const elementsToRemove = document.querySelectorAll(
-      `[data-path-id="${targetId}"]`,
+    if (state.partTranslations) {
+      state.partTranslations.delete(targetId);
+      state.partTranslations.delete(cleanTargetId);
+    }
+    const createdPathIds = new Set<string>(
+      state.createdMeshes.map((m) => String(m.metadata?.rendererPathId)),
     );
-    elementsToRemove.forEach((el) => el.remove());
+    updateUIState({
+      loadedFiles: [...state.loadedFiles],
+      createdPathIds,
+    });
   };
   public isApproxPathIdMatch = (idA: unknown, idB: unknown): boolean => {
     if (!idA || !idB) return false;

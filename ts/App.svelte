@@ -18,7 +18,7 @@
   export let animationLoop = true;
   export let animationSpeed = 1.0;
   export let onClearModel: (index: number) => void = () => {};
-  export let onRemovePart: (fileIndex: number, partId: string) => void = () => {};
+  export let onRemovePart: (fileIndex: number, partId: string, partName?: string) => void = () => {};
   export let onToggleVisibility: (fileIndex: number, partId: string, name: string) => void = () => {};
   export let onToggleAllVisibility: (visible: boolean, fileIndex: number, partIds: string[], query?: string) => void = () => {};
   export let onTranslatePart: (partId: string, translation: { x: number; y: number; z: number }) => void = () => {};
@@ -39,7 +39,7 @@
     if (newProps.animationLoop !== undefined) animationLoop = newProps.animationLoop as boolean;
     if (newProps.animationSpeed !== undefined) animationSpeed = newProps.animationSpeed as number;
     if (newProps.onClearModel !== undefined) onClearModel = newProps.onClearModel as (index: number) => void;
-    if (newProps.onRemovePart !== undefined) onRemovePart = newProps.onRemovePart as (fileIndex: number, partId: string) => void;
+    if (newProps.onRemovePart !== undefined) onRemovePart = newProps.onRemovePart as (fileIndex: number, partId: string, partName?: string) => void;
     if (newProps.onToggleVisibility !== undefined) onToggleVisibility = newProps.onToggleVisibility as (fileIndex: number, partId: string, name: string) => void;
     if (newProps.onToggleAllVisibility !== undefined) onToggleAllVisibility = newProps.onToggleAllVisibility as (visible: boolean, fileIndex: number, partIds: string[], query?: string) => void;
     if (newProps.onTranslatePart !== undefined) onTranslatePart = newProps.onTranslatePart as (partId: string, translation: { x: number; y: number; z: number }) => void;
@@ -411,6 +411,36 @@
       window.onChangeBackgroundColor(color);
     }
   }
+  function handleRemovePart(fileIndex: number, partId: string, partName?: string) {
+    onRemovePart(fileIndex, partId, partName);
+    const file = loadedFiles[fileIndex];
+    if (file) {
+      const cleanTargetId = partId.startsWith("orphan_") ? partId.slice(7) : partId;
+      file.objects = file.objects.filter((obj: UnityObject) => {
+        const type = Object.keys(obj)[0];
+        const data = obj[type] as Record<string, unknown> | undefined;
+        if (!data) return true;
+        const pid = String(data.path_id ?? "");
+        if (pid && (pid === partId || pid === cleanTargetId || `orphan_${pid}` === partId)) {
+          return false;
+        }
+        if (partName) {
+          const meshMeta = data.mesh as Record<string, unknown> | undefined;
+          const displayName = String(data.name || meshMeta?.name || "");
+          if (displayName && displayName === partName) {
+            return false;
+          }
+        }
+        return true;
+      });
+      if (createdPathIds) {
+        createdPathIds.delete(partId);
+        createdPathIds.delete(cleanTargetId);
+        createdPathIds = new Set(createdPathIds);
+      }
+      loadedFiles = [...loadedFiles];
+    }
+  }
 </script>
 {#if showDroparea}
   <div class="droparea active" on:dragleave={() => (showDroparea = false)}>
@@ -765,7 +795,7 @@
                         >
                           {part.name}
                         </div>
-                        <button class="btn-icon" on:click={() => onRemovePart(fileIndex, part.id)}>
+                        <button class="btn-icon" on:click={() => handleRemovePart(fileIndex, part.id, part.name)}>
                           &times;
                         </button>
                       </div>
