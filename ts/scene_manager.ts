@@ -16,6 +16,7 @@ import { Animation } from "@babylonjs/core/Animations/animation";
 import { AnimationGroup } from "@babylonjs/core/Animations/animationGroup";
 import { GLTF2Export } from "@babylonjs/serializers/glTF/2.0/glTFSerializer";
 import "@babylonjs/serializers/glTF/2.0/Extensions/KHR_materials_unlit";
+import "@babylonjs/core/Shaders/postprocess.vertex";
 import { Constants } from "@babylonjs/core/Engines/constants";
 import { Material } from "@babylonjs/core/Materials/material";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
