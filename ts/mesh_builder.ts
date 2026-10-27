@@ -669,7 +669,7 @@ export async function instantiateMesh(
         const bone = activeSkeleton.bones[def.boneIndex];
         if (bone) {
           const boneName = bone.name;
-          const cleanedName = boneName.split(/[\/_:]/).pop() || boneName;
+          const cleanedName = boneName.split(/[\/:]/).pop() || boneName;
           (subMesh as any).friendlyName = cleanedName;
         }
       }
