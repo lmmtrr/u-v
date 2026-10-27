@@ -147,6 +147,7 @@ export interface ViewerState {
   morphOverrides: Set<MorphTarget>;
   materialCache: Map<string, Material>;
   textureCache: Map<string, Texture>;
+  rawTextureCache: Map<string, Promise<Uint8Array | null>>;
   animationDropdown: HTMLElement | null;
   fileListPanel: HTMLDivElement | null;
   advancedTexture: object | null;

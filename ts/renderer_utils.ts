@@ -5,7 +5,7 @@ import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { MultiMaterial } from "@babylonjs/core/Materials/multiMaterial";
 import { Constants } from "@babylonjs/core/Engines/constants";
-import { findSourceFile } from "./state";
+import { state, findSourceFile } from "./state";
 import { unityWorker } from "./engines/unity/worker_api";
 import {
   UnityToonPlugin,
@@ -69,13 +69,18 @@ export const toRGBABytes = async (
     const file = findSourceFile(texData);
     if (file && file.fileIndex !== undefined) {
       const pathId: PathId = texData.raw_path_id || texData.path_id || "";
-        const result = await unityWorker.getTextureData(
-          file.fileIndex,
-          pathId,
-          texData.sourceFileName,
-        );
-      if (result && result.raw) {
-        const raw = result.raw;
+      const rawKey = `${file.fileIndex}|${pathId}`;
+      let pending = state.rawTextureCache.get(rawKey);
+      if (!pending) {
+        pending = unityWorker
+          .getTextureData(file.fileIndex, pathId, texData.sourceFileName)
+          .then((result) => result?.raw ?? null)
+          .catch(() => null);
+        state.rawTextureCache.set(rawKey, pending);
+      }
+      const cachedRaw = await pending;
+      if (cachedRaw) {
+        const raw = cachedRaw.slice();
         const keepAlpha =
           allowAlpha === false
             ? false

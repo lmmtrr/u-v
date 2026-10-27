@@ -39,6 +39,7 @@ export const state: ViewerState = {
   morphOverrides: new Set(),
   materialCache: new Map<string, Material>(),
   textureCache: new Map<string, Texture>(),
+  rawTextureCache: new Map<string, Promise<Uint8Array | null>>(),
   animationDropdown: null as HTMLElement | null,
   fileListPanel: null as HTMLDivElement | null,
   advancedTexture: null as object | null,
@@ -46,6 +47,7 @@ export const state: ViewerState = {
   clearState() {
     this.materialCache.clear();
     this.textureCache.clear();
+    this.rawTextureCache.clear();
     this.allObjects = [];
     this.allObjectHash.clear();
     this.currentAnimationData = null;
