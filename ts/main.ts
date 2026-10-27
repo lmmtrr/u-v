@@ -113,7 +113,9 @@ if (urlInput && submitBtn) {
       await loadFiles([file], null, state, onFilesLoaded);
     } catch (error: any) {
       showNotification(
-        `Failed to fetch asset from URL. Ensure CORS is enabled on the remote server.`,
+        error instanceof TypeError
+          ? `Failed to fetch asset from URL. Ensure CORS is enabled on the remote server.`
+          : `Failed to load asset from URL: ${error?.message || String(error)}`,
         "error"
       );
     } finally {
