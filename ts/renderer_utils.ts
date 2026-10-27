@@ -280,12 +280,13 @@ export const createMaterial = async (
   materialCache: Map<string, Material>,
   textureCache: Map<string, Texture>,
 ): Promise<StandardMaterial> => {
-  if (materialCache.has(textureIdsKey)) {
-    return materialCache.get(textureIdsKey) as StandardMaterial;
+  const cacheKey = `single|${textureIdsKey}`;
+  if (materialCache.has(cacheKey)) {
+    return materialCache.get(cacheKey) as StandardMaterial;
   }
   const mat = new StandardMaterial("mat_" + textureIdsKey, scene);
   await configureMaterial(mat, textures[0] as TextureInfo | undefined, scene, textureCache);
-  materialCache.set(textureIdsKey, mat);
+  materialCache.set(cacheKey, mat);
   return mat;
 };
 export const createMultiMaterial = async (
@@ -297,8 +298,9 @@ export const createMultiMaterial = async (
   materialCache: Map<string, Material>,
   textureCache: Map<string, Texture>,
 ): Promise<MultiMaterial> => {
-  if (materialCache.has(textureIdsKey)) {
-    return materialCache.get(textureIdsKey) as MultiMaterial;
+  const cacheKey = `multi|${subMeshes.length}|${textureIdsKey}`;
+  if (materialCache.has(cacheKey)) {
+    return materialCache.get(cacheKey) as MultiMaterial;
   }
   const multiMat = new MultiMaterial(
     "multiMat_" + (meshName || "custom"),
@@ -311,6 +313,6 @@ export const createMultiMaterial = async (
     await configureMaterial(subMat, texInfo, scene, textureCache);
     multiMat.subMaterials.push(subMat);
   }
-  materialCache.set(textureIdsKey, multiMat);
+  materialCache.set(cacheKey, multiMat);
   return multiMat;
 };
