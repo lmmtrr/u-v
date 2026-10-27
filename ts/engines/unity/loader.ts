@@ -26,7 +26,7 @@ export const loadUnityFiles = async (
 ): Promise<boolean> => {
   const totalFiles = files.length;
   let filesCompleted = 0;
-  let succeeded = true;
+  let succeeded = false;
   const loadPromises = files.map(async (file) => {
     try {
       const arrayBuf = await readFileAsArrayBuffer(file, (percent) => {
@@ -54,7 +54,8 @@ export const loadUnityFiles = async (
           "error",
         );
         showSplash();
-        succeeded = false;
+      } else {
+        succeeded = true;
       }
       state.loadedFiles.push({
         name,
@@ -78,7 +79,6 @@ export const loadUnityFiles = async (
       );
       showSplash();
       filesCompleted++;
-      succeeded = false;
       updateProgress(
         25 + (filesCompleted / totalFiles) * 35,
         "Parsing Asset Bundle...",
