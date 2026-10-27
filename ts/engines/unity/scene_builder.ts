@@ -685,38 +685,26 @@ export class UnitySceneBuilder {
         }
         if (!fatherIsTwist && goNameLower.includes("twist")) {
           let targets: string[] = [];
-          const has002ButNotBip =
-            goNameLower.includes("002") && !goNameLower.includes("bip002");
+          const sideOf = (side: "l" | "r") => {
+            const word = side === "l" ? "left" : "right";
+            const tokens = goNameLower.split(/[^a-z0-9]+/).filter(Boolean);
+            return (
+              tokens.some(
+                (t) =>
+                  t === side ||
+                  t.startsWith(word) ||
+                  t.endsWith(word) ||
+                  (t[0] === side && /^(thigh|calf|uparm|fore|hand)/.test(t.slice(1))),
+              ) ||
+              new RegExp(`[a-z0-9]${side.toUpperCase()}$`).test(String(go.name))
+            );
+          };
           const isRight =
-            has002ButNotBip ||
-            goNameLower.includes(".r") ||
-            goNameLower.includes("_r") ||
-            goNameLower.includes("right") ||
-            goNameLower.endsWith("r") ||
-            goNameLower.includes(" r ") ||
-            goNameLower.includes(" r") ||
-            goNameLower.includes("r_") ||
-            goNameLower.includes("rthigh") ||
-            goNameLower.includes("rcalf") ||
-            goNameLower.includes("ruparm") ||
-            goNameLower.includes("rfore") ||
-            goNameLower.includes("rhand");
-          const has001ButNotBip =
-            goNameLower.includes("001") && !goNameLower.includes("bip001");
+            (goNameLower.includes("002") && !goNameLower.includes("bip002")) ||
+            sideOf("r");
           const isLeft =
-            has001ButNotBip ||
-            goNameLower.includes(".l") ||
-            goNameLower.includes("_l") ||
-            goNameLower.includes("left") ||
-            goNameLower.endsWith("l") ||
-            goNameLower.includes(" l ") ||
-            goNameLower.includes(" l") ||
-            goNameLower.includes("l_") ||
-            goNameLower.includes("lthigh") ||
-            goNameLower.includes("lcalf") ||
-            goNameLower.includes("luparm") ||
-            goNameLower.includes("lfore") ||
-            goNameLower.includes("lhand");
+            (goNameLower.includes("001") && !goNameLower.includes("bip001")) ||
+            sideOf("l");
           if (goNameLower.includes("uparm") || goNameLower.includes("upper")) {
             if (isLeft) {
               targets = [
