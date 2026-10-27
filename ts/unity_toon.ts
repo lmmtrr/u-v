@@ -561,7 +561,7 @@ export const configureUnityToonPlugin = (
     b: base.b * tint.b,
   };
   plugin.flatten =
-    mode === "toon" ? (info.keywords.includes("_GI_FLATTEN") ? 0.25 : 0) : 1;
+    mode === "toon" ? (info.keywords.includes("_GI_FLATTEN") ? 0.2 : 0.1) : 1;
   plugin.shadowRole =
     mode !== "toon"
       ? null
